@@ -7,8 +7,8 @@ Usage:
     python generate_sticker.py
 
 Outputs:
-    ../foldrun-sticker.svg  - Full circular sticker
-    ../foldrun-qr.svg       - Standalone QR code
+    ../img/foldrun-sticker.svg  - Full circular sticker
+    ../img/foldrun-qr.svg       - Standalone QR code
 """
 
 import io
@@ -22,8 +22,8 @@ DEMO_URL = "https://youtu.be/umTLrEF5L7A"
 TITLE = "FoldRun"
 TAGLINE = "Agentic Protein Folding on GCP"
 SCAN_LABEL = "Scan to watch demo"
-OUTPUT_STICKER = "../foldrun-sticker.svg"
-OUTPUT_QR = "../foldrun-qr.svg"
+OUTPUT_STICKER = "../img/foldrun-sticker.svg"
+OUTPUT_QR = "../img/foldrun-qr.svg"
 
 # Google brand colors
 GOOGLE_BLUE = "#4285f4"
