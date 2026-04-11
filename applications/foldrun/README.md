@@ -1,4 +1,8 @@
-# FoldRun: Agentic Protein Folding
+<p align="center">
+  <img src="foldrun-icon.svg" alt="FoldRun" width="280"/>
+</p>
+
+<p align="center"><em>Agentic Protein Folding on GCP</em></p>
 
 FoldRun is an AI-powered orchestration platform for protein structure prediction on Google Cloud. It provides a conversational interface that manages the entire lifecycle — from sequence input to structural validation — using Gemini and Google Agent Engine.
 
