@@ -353,7 +353,7 @@ def submit_downloads(
             )
             continue
 
-        if existing.get(db_name):
+        if not source_bucket and existing.get(db_name):
             nfs_path = databases_config[db_name]["nfs_path"]
             results.append(
                 {
