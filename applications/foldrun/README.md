@@ -178,7 +178,7 @@ Or check the [Cloud Batch console](https://console.cloud.google.com/batch/jobs).
 | Resource | Name | Purpose |
 |----------|------|---------|
 | VPC + Subnet | `foldrun-network` | Private network for Filestore + pipelines |
-| Filestore | `foldrun-nfs` | NFS for genetic databases (~1TB, 2.5TB Basic SSD) |
+| Filestore | `foldrun-nfs` | NFS for genetic databases (~1TB, 2TB Basic HDD) |
 | GCS Bucket | `{project}-foldrun-data` | Pipeline outputs, analysis results |
 | GCS Bucket | `{project}-foldrun-gdbs` | Genomic database backups |
 | Artifact Registry | `foldrun-repo` | Container images |
@@ -207,7 +207,7 @@ uv run adk web foldrun_app
 
 | Component | Estimated Monthly Cost |
 |-----------|----------------------|
-| Filestore (2.5TB Basic SSD) | ~$820/mo |
+| Filestore (2TB Basic HDD) | ~$400/mo |
 | GCS (~1TB database backups) | ~$20/mo |
 | Artifact Registry (~16GB) | ~$2/mo |
 | Agent Engine (idle) | ~$0 (pay per query) |
@@ -216,7 +216,7 @@ uv run adk web foldrun_app
 | OF3 prediction (per job, A100) | ~$13 per job (MSA + 5 seeds predict) |
 | Gemini API (per analysis) | ~$0.01-0.05 per analysis |
 
-The dominant cost is Filestore (~$820/mo). Current databases (AF2 + OF3) use ~944 GB of the 2.5 TB provisioned, leaving room for the full BFD database if needed. To stop costs, delete the Filestore instance when not in use and re-download databases when needed.
+The dominant cost is Filestore (~$400/mo). Current databases (AF2 reduced + OF3) use ~944 GB of the 2 TB provisioned, leaving room for the full BFD database (~272 GB) if needed. BASIC_HDD is sufficient since MSA workloads are CPU-bound, not I/O-bound. To stop costs, delete the Filestore instance when not in use and re-download databases when needed.
 
 ## Project Structure
 

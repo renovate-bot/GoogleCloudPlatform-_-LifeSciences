@@ -48,15 +48,15 @@ variable "peering_cidr" {
 }
 
 variable "filestore_tier" {
-  description = "Tier for the Filestore instance"
+  description = "Tier for the Filestore instance (BASIC_HDD is sufficient — MSA workloads are CPU-bound, not I/O-bound)"
   type        = string
-  default     = "BASIC_SSD"
+  default     = "BASIC_HDD"
 }
 
 variable "filestore_capacity_gb" {
-  description = "Capacity for Filestore in GB (min 2560 for BASIC_SSD)"
+  description = "Capacity for Filestore in GB (min 1024 for BASIC_HDD). AF2+OF3 reduced uses ~944GB, full BFD adds ~272GB."
   type        = number
-  default     = 2560
+  default     = 2048
 }
 
 variable "filestore_id" {
