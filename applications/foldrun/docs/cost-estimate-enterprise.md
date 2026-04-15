@@ -23,13 +23,13 @@ This document provides a cost estimate for a large pharmaceutical or biotech org
 
 | Component | Monthly Cost | 12-Month Cost |
 |---|---|---|
-| Filestore (2TB BASIC_HDD) | $400 | $4,800 |
+| Filestore (2.5TB BASIC_SSD) | $770 | $9,240 |
 | GCS (~1TB backups + growing results) | $25 | $300 |
 | Artifact Registry | $5 | $60 |
 | Agent Engine | $50 | $600 |
 | Cloud Run (viewer) | $20 | $240 |
 | VPC / NAT | $45 | $540 |
-| **Infrastructure subtotal** | **~$545** | **~$6,540** |
+| **Infrastructure subtotal** | **~$915** | **~$10,980** |
 
 ## Compute (GPU Predictions)
 
@@ -76,18 +76,18 @@ Ramp schedule: 25% volume months 1-3 (migration), 100% months 4-12.
 
 | Category | 12-Month Cost |
 |---|---|
-| Infrastructure (always-on) | $6,540 |
+| Infrastructure (always-on) | $10,980 |
 | Compute (GPU predictions) | $81,900 |
 | Other | $2,500 |
-| **Total** | **~$91,000** |
-| **Monthly average** | **~$7,600** |
+| **Total** | **~$95,000** |
+| **Monthly average** | **~$7,900** |
 
 ## Cost Optimization Levers
 
 | Lever | Potential Savings |
 |---|---|
 | **DWS reservations** (committed GPU usage) | 40-60% on compute |
-| **Filestore lifecycle** (delete when idle, restore from GCS) | Up to $400/mo during idle periods |
+| **Filestore lifecycle** (delete when idle, restore from GCS) | Up to $770/mo during idle periods |
 | **Spot/preemptible VMs** for non-urgent batch jobs | 60-70% on compute |
 | **Reduced BFD** vs full BFD | Smaller Filestore, faster MSA |
 
