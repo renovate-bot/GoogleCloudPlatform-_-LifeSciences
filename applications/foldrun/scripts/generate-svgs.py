@@ -23,7 +23,7 @@ import qrcode.image.svg
 DEMO_URL = "https://bit.ly/foldrun"
 TITLE = "FoldRun"
 TAGLINE = "Agentic Protein Folding on"
-SCAN_LABEL = "Scan to watch demo"
+SCAN_LABEL = "https://goo.gle/foldrun"
 
 # Google Cloud icon (../img/google-cloud.svg, viewBox 0 0 128 128, 4-color logo)
 GCP_ICON_FILE = "../img/google-cloud.svg"
