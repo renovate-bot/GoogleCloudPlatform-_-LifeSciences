@@ -20,7 +20,7 @@ import qrcode
 import qrcode.image.svg
 
 # --- Configuration ---
-DEMO_URL = "https://bit.ly/foldrun"
+DEMO_URL = "https://goo.gle/foldrun"
 TITLE = "FoldRun"
 TAGLINE = "Agentic Protein Folding on"
 SCAN_LABEL = "https://goo.gle/foldrun"
