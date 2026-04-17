@@ -103,16 +103,7 @@ def main():
 
     # Build the A2A agent (imports trigger module-level vertexai.init)
     logger.info("Building A2aAgent...")
-    from foldrun_app.a2a_agent_card import foldrun_agent_card
-    from foldrun_app.a2a_executor import FoldRunAgentExecutor
-    from foldrun_app.agent import create_alphafold_agent
-
-    a2a_agent = A2aAgent(
-        agent_card=foldrun_agent_card,
-        agent_executor_builder=lambda: FoldRunAgentExecutor(
-            agent=create_alphafold_agent()
-        ),
-    )
+    from foldrun_app.a2a_app import a2a_agent
 
     # Re-initialize Vertex AI AFTER agent imports (agent.py runs
     # vertexai.init() at import time without staging_bucket, which
@@ -179,7 +170,7 @@ def main():
     project_number = parts[1]
 
     # Build the A2A URL
-    a2a_url = f"https://{location}-aiplatform.googleapis.com/v1beta1/{resource_name}/a2a"
+    a2a_url = f"https://{location}-aiplatform.googleapis.com/v1beta1/{resource_name}/a2a/v1/card"
 
     # Write deployment metadata
     metadata = {
@@ -214,7 +205,7 @@ def main():
     │  1. ~/.gemini/settings.json:                    │
     │     {{"experimental": {{"enableAgents": true}}}}    │
     │                                                 │
-    │  2. ~/.gemini/agents/foldrun.yaml:              │
+    │  2. ~/.gemini/agents/foldrun.md:              │
     │     ---                                         │
     │     kind: remote                                │
     │     name: foldrun                               │

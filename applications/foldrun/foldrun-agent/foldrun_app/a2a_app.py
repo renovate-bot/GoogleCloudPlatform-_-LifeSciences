@@ -12,35 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""FoldRun A2A Agent Engine entrypoint.
+"""FoldRun A2A Agent Engine entrypoint with direct method overrides."""
 
-Wraps the FoldRun ADK agent as an A2aAgent for deployment to
-Vertex AI Agent Engine with A2A protocol support.
-
-Deploy with:
-    entrypoint_module: foldrun_app.a2a_app
-    entrypoint_object: a2a_agent
-
-Gemini CLI config (~/.gemini/agents/foldrun.yaml):
-    ---
-    kind: remote
-    name: foldrun
-    agent_card_url: https://<location>-aiplatform.googleapis.com/v1beta1/projects/<project>/locations/<location>/reasoningEngines/<id>/a2a
-    ---
-"""
+import logging
 
 from vertexai.preview.reasoning_engines import A2aAgent
 
+from google.adk import Runner
+from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor
+from google.adk.artifacts import InMemoryArtifactService
+from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
+from google.adk.sessions import InMemorySessionService
+
 from foldrun_app.a2a_agent_card import foldrun_agent_card
-from foldrun_app.a2a_executor import FoldRunAgentExecutor
 from foldrun_app.agent import create_alphafold_agent
 
+logger = logging.getLogger(__name__)
 
-def _build_executor() -> FoldRunAgentExecutor:
+def _build_executor() -> A2aAgentExecutor:
     """Build the FoldRun A2A executor with the ADK agent."""
     agent = create_alphafold_agent()
-    return FoldRunAgentExecutor(agent=agent)
-
+    runner = Runner(
+        app_name=agent.name,
+        agent=agent,
+        artifact_service=InMemoryArtifactService(),
+        session_service=InMemorySessionService(),
+        memory_service=InMemoryMemoryService(),
+    )
+    return A2aAgentExecutor(runner=runner)
 
 a2a_agent = A2aAgent(
     agent_card=foldrun_agent_card,
