@@ -15,26 +15,43 @@
 
 # Deploy FoldRun A2A agent to Cloud Run.
 #
+# This script copies the foldrun_app package from the agent directory,
+# then deploys to Cloud Run using source-based builds.
+#
 # Usage:
-#   bash deploy_a2a_cloudrun.sh <PROJECT_ID> [SERVICE_NAME] [REGION]
+#   bash deploy.sh <PROJECT_ID> [SERVICE_NAME] [REGION]
 #
 # Example:
-#   bash deploy_a2a_cloudrun.sh losiern-foldrun6
-#   bash deploy_a2a_cloudrun.sh losiern-foldrun6 foldrun-a2a us-central1
+#   bash deploy.sh losiern-foldrun6
+#   bash deploy.sh losiern-foldrun6 foldrun-a2a us-central1
 
 set -euo pipefail
 
-PROJECT_ID="${1:?Usage: deploy_a2a_cloudrun.sh <PROJECT_ID> [SERVICE_NAME] [REGION]}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+AGENT_DIR="${SCRIPT_DIR}/../../foldrun-agent"
+
+PROJECT_ID="${1:?Usage: deploy.sh <PROJECT_ID> [SERVICE_NAME] [REGION]}"
 SERVICE_NAME="${2:-foldrun-a2a}"
 REGION="${3:-us-central1}"
 SERVICE_ACCOUNT="foldrun-agent-sa@${PROJECT_ID}.iam.gserviceaccount.com"
 
-# Source .env for any env vars needed at deploy time
-if [[ -f .env ]]; then
+# Source .env from the agent directory
+if [[ -f "${AGENT_DIR}/.env" ]]; then
   set -a
-  source .env
+  source "${AGENT_DIR}/.env"
   set +a
 fi
+
+# Copy foldrun_app package and requirements for Cloud Run build
+echo "Syncing foldrun_app from ${AGENT_DIR}..."
+rsync -a --delete \
+  --exclude='__pycache__' \
+  --exclude='*.pyc' \
+  --exclude='a2a_agent_card.py' \
+  "${AGENT_DIR}/foldrun_app/" "${SCRIPT_DIR}/foldrun_app/"
+
+# Copy requirements (the pinned export, not pyproject.toml deps)
+cp "${AGENT_DIR}/foldrun_app/app_utils/.requirements.txt" "${SCRIPT_DIR}/requirements.txt"
 
 echo "╔═══════════════════════════════════════════════════════════╗"
 echo "║   Deploying FoldRun A2A to Cloud Run                     ║"
@@ -104,7 +121,7 @@ echo "│  Next Steps                                                 │"
 echo "├─────────────────────────────────────────────────────────────┤"
 echo "│                                                             │"
 echo "│  1. Register with Gemini Enterprise:                        │"
-echo "│     bash register_a2a_gemini.sh \\                           │"
+echo "│     bash register_gemini.sh \\                               │"
 echo "│       ${PROJECT_NUMBER} \\                                   │"
 echo "│       <ENGINE_ID> \\                                         │"
 echo "│       ${AGENT_URL}                                          │"

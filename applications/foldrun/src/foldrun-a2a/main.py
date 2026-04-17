@@ -12,7 +12,7 @@ from google.adk.artifacts import InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.sessions import InMemorySessionService
 
-from foldrun_app.a2a_agent_card import foldrun_agent_card
+from a2a_agent_card import foldrun_agent_card
 from foldrun_app.agent import create_alphafold_agent
 
 logging.basicConfig(level=logging.INFO)
