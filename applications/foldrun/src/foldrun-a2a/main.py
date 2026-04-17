@@ -1,55 +1,222 @@
-import os
-import uvicorn
-import logging
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
+"""FoldRun A2A proxy — thin Cloud Run service that exposes the A2A protocol
+and forwards requests to the FoldRun Agent Engine deployment.
+
+The agent logic runs entirely on Agent Engine; this service only handles
+A2A protocol translation and response streaming.
+"""
+
+import logging
+import os
+from collections.abc import AsyncIterable
+from uuid import uuid4
+
+import uvicorn
+import vertexai
 from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore
-
-from google.adk import Runner
-from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor
-from google.adk.artifacts import InMemoryArtifactService
-from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
-from google.adk.sessions import InMemorySessionService
+from a2a.types import (
+    Artifact,
+    DataPart,
+    Message,
+    Part,
+    Role,
+    Task,
+    TaskArtifactUpdateEvent,
+    TaskState,
+    TaskStatus,
+    TaskStatusUpdateEvent,
+    TextPart,
+    UnsupportedOperationError,
+)
+from a2a.utils import new_agent_text_message
+from a2a.server.agent_execution import AgentExecutor, RequestContext
 
 from a2a_agent_card import foldrun_agent_card
-from foldrun_app.agent import create_alphafold_agent
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def create_executor() -> A2aAgentExecutor:
-    """Build the FoldRun A2A executor with the ADK agent."""
-    agent = create_alphafold_agent()
-    runner = Runner(
-        app_name=agent.name,
-        agent=agent,
-        artifact_service=InMemoryArtifactService(),
-        session_service=InMemorySessionService(),
-        memory_service=InMemoryMemoryService(),
-    )
-    return A2aAgentExecutor(runner=runner)
+# Agent Engine resource for the FoldRun agent
+AGENT_ENGINE_RESOURCE = os.environ.get(
+    "AGENT_ENGINE_RESOURCE",
+    "projects/673254409461/locations/us-central1/reasoningEngines/7748725183623462912",
+)
+
+
+class AgentEngineProxyExecutor(AgentExecutor):
+    """A2A executor that proxies requests to Agent Engine."""
+
+    def __init__(self):
+        self._engine = None
+        # Map A2A context IDs to Agent Engine session IDs
+        self._sessions: dict[str, str] = {}
+
+    def _get_engine(self):
+        """Lazy-load the Agent Engine reference."""
+        if self._engine is None:
+            from vertexai import agent_engines
+            self._engine = agent_engines.get(AGENT_ENGINE_RESOURCE)
+            logger.info(f"Connected to Agent Engine: {AGENT_ENGINE_RESOURCE}")
+        return self._engine
+
+    def _get_or_create_session(self, context_id: str) -> str:
+        """Get or create an Agent Engine session for the given A2A context."""
+        if context_id in self._sessions:
+            return self._sessions[context_id]
+
+        engine = self._get_engine()
+        session = engine.create_session(user_id=f"a2a-{context_id}")
+        session_id = session["id"]
+        self._sessions[context_id] = session_id
+        logger.info(f"Created session {session_id} for context {context_id}")
+        return session_id
+
+    async def execute(self, context: RequestContext, event_queue) -> None:
+        """Execute a request by forwarding to Agent Engine and streaming back."""
+        # Extract the user message text
+        user_text = ""
+        if context.message and context.message.parts:
+            for part in context.message.parts:
+                if isinstance(part.root, TextPart):
+                    user_text += part.root.text
+
+        if not user_text:
+            await event_queue.enqueue_event(
+                TaskStatusUpdateEvent(
+                    taskId=context.task_id or uuid4().hex,
+                    contextId=context.context_id,
+                    final=True,
+                    status=TaskStatus(
+                        state=TaskState.completed,
+                        message=new_agent_text_message(
+                            "No text content in request.",
+                            context.task_id or uuid4().hex,
+                            context.context_id,
+                        ),
+                    ),
+                )
+            )
+            return
+
+        task_id = context.task_id or uuid4().hex
+        context_id = context.context_id
+
+        # Signal that we're working
+        await event_queue.enqueue_event(
+            TaskStatusUpdateEvent(
+                taskId=task_id,
+                contextId=context_id,
+                final=False,
+                status=TaskStatus(state=TaskState.working),
+            )
+        )
+
+        # Get or create Agent Engine session
+        session_id = self._get_or_create_session(context_id)
+        engine = self._get_engine()
+
+        # Stream the query to Agent Engine and collect response
+        try:
+            full_response = ""
+            for chunk in engine.stream_query(
+                user_id=f"a2a-{context_id}",
+                session_id=session_id,
+                message=user_text,
+            ):
+                # Extract text from the streaming chunk
+                chunk_text = ""
+                if isinstance(chunk, dict):
+                    content = chunk.get("content", {})
+                    parts = content.get("parts", [])
+                    for part in parts:
+                        if "text" in part:
+                            chunk_text += part["text"]
+                elif hasattr(chunk, "content"):
+                    content = chunk.content
+                    if hasattr(content, "parts"):
+                        for part in content.parts:
+                            if hasattr(part, "text"):
+                                chunk_text += part.text
+
+                if chunk_text:
+                    full_response += chunk_text
+
+            # Send completed response
+            await event_queue.enqueue_event(
+                TaskStatusUpdateEvent(
+                    taskId=task_id,
+                    contextId=context_id,
+                    final=True,
+                    status=TaskStatus(
+                        state=TaskState.completed,
+                        message=new_agent_text_message(
+                            full_response or "No response from agent.",
+                            task_id,
+                            context_id,
+                        ),
+                    ),
+                )
+            )
+
+        except Exception as e:
+            logger.exception(f"Error proxying to Agent Engine: {e}")
+            await event_queue.enqueue_event(
+                TaskStatusUpdateEvent(
+                    taskId=task_id,
+                    contextId=context_id,
+                    final=True,
+                    status=TaskStatus(
+                        state=TaskState.failed,
+                        message=new_agent_text_message(
+                            f"Error communicating with agent: {e}",
+                            task_id,
+                            context_id,
+                        ),
+                    ),
+                )
+            )
+
+    async def cancel(self, context: RequestContext, event_queue) -> None:
+        raise UnsupportedOperationError("Cancel not supported")
+
 
 def create_app():
-    # Force Vertex AI backend for ADK
-    os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "1"
+    # Initialize Vertex AI
+    project = os.environ.get("GOOGLE_CLOUD_PROJECT", "losiern-foldrun6")
+    location = os.environ.get("GOOGLE_CLOUD_REGION", "us-central1")
+    vertexai.init(project=project, location=location)
 
     request_handler = DefaultRequestHandler(
-        agent_executor=create_executor(),
+        agent_executor=AgentEngineProxyExecutor(),
         task_store=InMemoryTaskStore(),
     )
 
-    # Initialize the Starlette Application with A2A endpoints
     server = A2AStarletteApplication(
         agent_card=foldrun_agent_card,
         http_handler=request_handler,
     )
-    
+
     return server.build()
+
 
 app = create_app()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
-    logger.info(f"Starting FoldRun A2A server on port {port}...")
-    uvicorn.run("main:app", host='0.0.0.0', port=port, reload=False)
+    logger.info(f"Starting FoldRun A2A proxy on port {port}...")
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)

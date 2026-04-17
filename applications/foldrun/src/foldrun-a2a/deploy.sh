@@ -13,10 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Deploy FoldRun A2A agent to Cloud Run.
+# Deploy FoldRun A2A proxy to Cloud Run.
 #
-# This script copies the foldrun_app package from the agent directory,
-# then deploys to Cloud Run using source-based builds.
+# Thin proxy that exposes A2A protocol and forwards requests to
+# the FoldRun Agent Engine deployment.
 #
 # Usage:
 #   bash deploy.sh <PROJECT_ID> [SERVICE_NAME] [REGION]
@@ -28,7 +28,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-AGENT_DIR="${SCRIPT_DIR}/../../foldrun-agent"
 
 # Configuration
 PROJECT_ID="${1:?Usage: deploy.sh <PROJECT_ID> [SERVICE_NAME] [REGION]}"
@@ -40,26 +39,23 @@ SUBNET_NAME="${SUBNET_NAME:-${VPC_NAME}-subnet}"
 AR_REPO="${AR_REPO:-foldrun-repo}"
 IMAGE_PATH="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/${SERVICE_NAME}:latest"
 
-# Source .env from the agent directory
-if [[ -f "${AGENT_DIR}/.env" ]]; then
-  set -a
-  source "${AGENT_DIR}/.env"
-  set +a
+# Agent Engine resource (read from deployment metadata or override)
+AGENT_ENGINE_RESOURCE="${AGENT_ENGINE_RESOURCE:-}"
+if [[ -z "${AGENT_ENGINE_RESOURCE}" ]]; then
+  METADATA_FILE="${SCRIPT_DIR}/../../foldrun-agent/deployment_metadata.json"
+  if [[ -f "${METADATA_FILE}" ]]; then
+    AGENT_ENGINE_RESOURCE=$(python3 -c "import json; print(json.load(open('${METADATA_FILE}'))['remote_agent_engine_id'])")
+  fi
 fi
 
-# Copy foldrun_app package and requirements for Cloud Run build
-echo "Syncing foldrun_app from ${AGENT_DIR}..."
-rsync -a --delete \
-  --exclude='__pycache__' \
-  --exclude='*.pyc' \
-  --exclude='a2a_agent_card.py' \
-  "${AGENT_DIR}/foldrun_app/" "${SCRIPT_DIR}/foldrun_app/"
-
-# Copy requirements (the pinned export, not pyproject.toml deps)
-cp "${AGENT_DIR}/foldrun_app/app_utils/.requirements.txt" "${SCRIPT_DIR}/requirements.txt"
+if [[ -z "${AGENT_ENGINE_RESOURCE}" ]]; then
+  echo "ERROR: AGENT_ENGINE_RESOURCE not set and deployment_metadata.json not found."
+  echo "Set AGENT_ENGINE_RESOURCE=projects/<num>/locations/<region>/reasoningEngines/<id>"
+  exit 1
+fi
 
 echo "╔═══════════════════════════════════════════════════════════╗"
-echo "║   Deploying FoldRun A2A to Cloud Run                     ║"
+echo "║   Deploying FoldRun A2A Proxy to Cloud Run               ║"
 echo "╚═══════════════════════════════════════════════════════════╝"
 echo ""
 echo "  Project:         ${PROJECT_ID}"
@@ -68,27 +64,16 @@ echo "  Region:          ${REGION}"
 echo "  Image:           ${IMAGE_PATH}"
 echo "  Service Account: ${SERVICE_ACCOUNT}"
 echo "  Network:         ${VPC_NAME} / ${SUBNET_NAME}"
+echo "  Agent Engine:    ${AGENT_ENGINE_RESOURCE}"
 echo ""
 
 # Set the project
 gcloud config set project "${PROJECT_ID}"
 
-# Build env vars string for Cloud Run
-# Pull key vars from .env, skip reserved/empty ones
-ENV_VARS="GOOGLE_GENAI_USE_VERTEXAI=1"
-ENV_VARS="${ENV_VARS},GOOGLE_CLOUD_PROJECT=${PROJECT_ID}"
+# Env vars — only what the proxy needs
+ENV_VARS="GOOGLE_CLOUD_PROJECT=${PROJECT_ID}"
 ENV_VARS="${ENV_VARS},GOOGLE_CLOUD_REGION=${REGION}"
-
-# Forward optional env vars from .env if set
-for var in GCP_PROJECT_ID GCP_REGION GCS_BUCKET_NAME GEMINI_MODEL \
-           OPENFOLD3_COMPONENTS_IMAGE AF2_VIEWER_URL FOLDRUN_VIEWER_URL \
-           ANALYSIS_VIEWER_BASE_URL VERTEX_PROJECT_ID VERTEX_LOCATION \
-           VERTEX_STAGING_BUCKET NFS_SERVER_IP NFS_SHARE_PATH; do
-  val="${!var:-}"
-  if [[ -n "${val}" ]]; then
-    ENV_VARS="${ENV_VARS},${var}=${val}"
-  fi
-done
+ENV_VARS="${ENV_VARS},AGENT_ENGINE_RESOURCE=${AGENT_ENGINE_RESOURCE}"
 
 echo "Step 1: Building container image..."
 gcloud builds submit \
@@ -96,7 +81,7 @@ gcloud builds submit \
   --project "${PROJECT_ID}" \
   --service-account "projects/${PROJECT_ID}/serviceAccounts/foldrun-build-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
   --substitutions "_IMAGE_PATH=${IMAGE_PATH}" \
-  .
+  "${SCRIPT_DIR}"
 
 echo ""
 echo "Step 2: Deploying to Cloud Run..."
@@ -107,8 +92,8 @@ gcloud run deploy "${SERVICE_NAME}" \
   --ingress all \
   --service-account "${SERVICE_ACCOUNT}" \
   --set-env-vars "${ENV_VARS}" \
-  --memory 2Gi \
-  --cpu 2 \
+  --memory 512Mi \
+  --cpu 1 \
   --timeout 300 \
   --min-instances 0 \
   --max-instances 5 \
@@ -122,9 +107,6 @@ AGENT_URL=$(gcloud run services describe "${SERVICE_NAME}" \
   --region "${REGION}" \
   --format 'value(status.url)')
 
-# Get project number for IAM setup
-PROJECT_NUMBER=$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')
-
 echo ""
 echo "╔═══════════════════════════════════════════════════════════╗"
 echo "║   Deployment successful!                                  ║"
@@ -133,53 +115,7 @@ echo ""
 echo "  Service URL:  ${AGENT_URL}"
 echo "  Agent Card:   ${AGENT_URL}/.well-known/agent.json"
 echo ""
-echo "┌─────────────────────────────────────────────────────────────┐"
-echo "│  Next Steps                                                 │"
-echo "├─────────────────────────────────────────────────────────────┤"
-echo "│                                                             │"
-echo "│  1. Register with Gemini Enterprise:                        │"
-echo "│     bash register_gemini.sh \\                               │"
-echo "│       ${PROJECT_NUMBER} \\                                   │"
-echo "│       <ENGINE_ID> \\                                         │"
-echo "│       ${AGENT_URL}                                          │"
-echo "│                                                             │"
-echo "│  2. Grant Cloud Run Invoker to Discovery Engine SA:         │"
-echo "│     gcloud run services add-iam-policy-binding \\            │"
-echo "│       ${SERVICE_NAME} \\                                     │"
-echo "│       --region=${REGION} \\                                  │"
-echo "│       --member=serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-discoveryengine.iam.gserviceaccount.com \\  │"
-echo "│       --role=roles/run.invoker                              │"
-echo "│                                                             │"
-echo "│  3. Test the agent card:                                    │"
-echo "│     curl -H \"Authorization: Bearer \$(gcloud auth print-access-token)\" \\  │"
-echo "│       ${AGENT_URL}/.well-known/agent.json                   │"
-echo "│                                                             │"
-echo "│  4. Gemini CLI setup:                                       │"
-echo "│     ~/.gemini/settings.json:                                │"
-echo "│       {\"experimental\": {\"enableAgents\": true}}              │"
-echo "│                                                             │"
-echo "│     ~/.gemini/agents/foldrun.md:                            │"
-echo "│       ---                                                   │"
-echo "│       kind: remote                                          │"
-echo "│       name: foldrun                                         │"
-echo "│       agent_card_url: ${AGENT_URL}/.well-known/agent.json   │"
-echo "│       ---                                                   │"
-echo "│                                                             │"
-echo "└─────────────────────────────────────────────────────────────┘"
+echo "  Test the agent card:"
+echo "    curl -H \"Authorization: Bearer \$(gcloud auth print-access-token)\" \\"
+echo "      ${AGENT_URL}/.well-known/agent.json"
 echo ""
-
-# Write deployment metadata
-cat > deployment_metadata_a2a.json <<EOF
-{
-  "deployment_target": "cloud_run",
-  "service_name": "${SERVICE_NAME}",
-  "project_id": "${PROJECT_ID}",
-  "project_number": "${PROJECT_NUMBER}",
-  "region": "${REGION}",
-  "agent_url": "${AGENT_URL}",
-  "agent_card_url": "${AGENT_URL}/.well-known/agent.json",
-  "deployment_timestamp": "$(date -Iseconds)"
-}
-EOF
-
-echo "Deployment metadata written to deployment_metadata_a2a.json"

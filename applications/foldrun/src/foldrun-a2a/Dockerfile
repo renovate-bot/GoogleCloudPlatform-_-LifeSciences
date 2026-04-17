@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# FoldRun A2A Agent - Cloud Run Dockerfile
+# FoldRun A2A Proxy - Cloud Run Dockerfile
+# Thin proxy that exposes the A2A protocol and forwards to Agent Engine.
 
 # Stage 1: Build environment
 FROM python:3.11-slim AS builder
@@ -34,7 +35,6 @@ COPY --from=builder /install /usr/local
 # Copy application files
 COPY main.py .
 COPY a2a_agent_card.py .
-COPY foldrun_app/ foldrun_app/
 
 # Create non-root user for security
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
