@@ -15,6 +15,7 @@
 ## Tech Stack
 
 - **Agent**: Google ADK with 23 native FunctionTools (AF2 + OF3), deployed to Vertex AI Agent Engine
+- **A2A**: Agent-to-Agent protocol proxy (Cloud Run) for agent interoperability
 - **AI**: Gemini (via Vertex AI)
 - **Compute**: Vertex AI Pipelines, Cloud Run, Cloud Batch
 - **Storage**: GCS (artifacts/results), Filestore (genetic databases)
@@ -149,7 +150,7 @@ Expected output:
 
 Open the Agent Engine playground:
 ```
-https://console.cloud.google.com/vertex-ai/agents/locations/us-central1/agent-engines/YOUR_ENGINE_ID/playground?project=YOUR_PROJECT_ID
+https://console.cloud.google.com/vertex-ai/agents/locations/YOUR_REGION/agent-engines/YOUR_ENGINE_ID/playground?project=YOUR_PROJECT_ID
 ```
 
 The engine ID is printed at the end of `deploy-all.sh` and saved in `foldrun-agent/deployment_metadata.json`.
@@ -158,6 +159,18 @@ The engine ID is printed at the end of `deploy-all.sh` and saved in `foldrun-age
 - "Predict the structure of ubiquitin" (AF2 monomer)
 - "Fold this protein with ATP: MQIFVKTLTGKTITL..." (OF3, protein + ligand)
 - "What's the structure of P69905?" (checks AlphaFold DB first)
+
+**Use via Gemini CLI (A2A):**
+
+The deploy prints the A2A proxy URL. Create `~/.gemini/agents/foldrun.md`:
+```markdown
+---
+name: FoldRun
+description: Protein structure prediction agent (AlphaFold2, OpenFold3)
+agent_card_url: https://YOUR_A2A_URL/.well-known/agent.json
+---
+```
+Then: `gemini -a foldrun "Predict the structure of ubiquitin"`
 
 ### Step 5: Wait for Databases
 
@@ -168,7 +181,7 @@ Database downloads run as Cloud Batch jobs in the background. Structure predicti
 
 Monitor progress:
 ```bash
-gcloud batch jobs list --project=YOUR_PROJECT_ID --location=us-central1
+gcloud batch jobs list --project=YOUR_PROJECT_ID --location=YOUR_REGION
 ```
 
 Or check the [Cloud Batch console](https://console.cloud.google.com/batch/jobs).
@@ -185,6 +198,7 @@ Or check the [Cloud Batch console](https://console.cloud.google.com/batch/jobs).
 | Cloud Run Service | `foldrun-viewer` | 3D structure viewer (AF2 + OF3) |
 | Cloud Run Job | `af2-analysis-job` | AF2 parallel analysis |
 | Cloud Run Job | `of3-analysis-job` | OF3 parallel analysis |
+| Cloud Run Service | `foldrun-a2a` | A2A protocol proxy for agent interop |
 | Service Account | `foldrun-agent-sa` | Agent's GCP identity |
 | Agent Engine | `FoldRun Assistant` | Deployed Gemini agent (via Cloud Build) |
 
@@ -258,6 +272,7 @@ foldrun/
 │   ├── alphafold-components/    # AF2 pipeline container
 │   ├── openfold3-components/    # OF3 pipeline container
 │   ├── foldrun-viewer/          # Cloud Run web app (combined AF2+OF3 3D viewer)
+│   ├── foldrun-a2a/             # Cloud Run A2A protocol proxy
 │   ├── af2-analysis-job/        # Cloud Run Job (AF2 analysis)
 │   └── of3-analysis-job/        # Cloud Run Job (OF3 analysis)
 ├── terraform/                   # Infrastructure as code
@@ -269,8 +284,13 @@ foldrun/
 ## Architecture
 
 ```
-┌──────────────────┐
-│  foldrun-agent   │ ← Conversational AI (Gemini Flash + 23 FunctionTools)
+                     ┌──────────────────┐
+  A2A clients ──→    │  foldrun-a2a     │ ← A2A protocol proxy (Cloud Run)
+                     │  (Cloud Run)     │
+                     └───────┬──────────┘
+                             │ Forwards to
+┌──────────────────┐         │
+│  foldrun-agent   │ ←───────┘  Conversational AI (Gemini Flash + 23 FunctionTools)
 │  (Agent Engine)  │
 └───────┬──────────┘
         │ Native tool calls

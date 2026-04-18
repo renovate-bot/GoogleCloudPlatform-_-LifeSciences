@@ -1,0 +1,12 @@
+.gcloudignore
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+uv.lock
+deploy.sh
+test_a2a.py
+test_grpc_server.py
+.env
+.env.example
