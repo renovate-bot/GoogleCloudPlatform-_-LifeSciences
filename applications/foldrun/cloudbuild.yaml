@@ -282,9 +282,12 @@ steps:
         echo ""
         echo "Gemini CLI: create ~/.gemini/agents/foldrun.md with:"
         echo "  ---"
+        echo "  kind: remote"
         echo "  name: FoldRun"
         echo "  description: Protein structure prediction agent (AlphaFold2, OpenFold3)"
         echo "  agent_card_url: $$A2A_URL/.well-known/agent.json"
+        echo "  auth:"
+        echo "    type: google-credentials"
         echo "  ---"
     waitFor: ['push-a2a', 'deploy-agent-engine']
 

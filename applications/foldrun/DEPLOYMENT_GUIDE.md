@@ -337,9 +337,12 @@ Create `~/.gemini/agents/foldrun.md`:
 
 ```markdown
 ---
+kind: remote
 name: FoldRun
 description: Protein structure prediction agent (AlphaFold2, OpenFold3)
 agent_card_url: https://YOUR_A2A_URL/.well-known/agent.json
+auth:
+  type: google-credentials
 ---
 ```
 
