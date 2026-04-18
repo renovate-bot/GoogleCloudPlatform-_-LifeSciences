@@ -222,7 +222,7 @@ steps:
     waitFor: ['deploy-viewer', 'push-alphafold-components', 'push-openfold3-components']
 
   # ============================================================================
-  # 2c. FoldRun A2A Proxy (Cloud Run Service — optional)
+  # 4b. FoldRun A2A Proxy (Cloud Run Service — optional)
   # ============================================================================
   - id: 'pull-a2a'
     name: 'gcr.io/cloud-builders/docker'
