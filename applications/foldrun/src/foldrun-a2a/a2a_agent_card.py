@@ -14,6 +14,7 @@
 
 """FoldRun A2A Agent Card definition."""
 
+import os
 from a2a.types import AgentSkill
 from vertexai.preview.reasoning_engines.templates.a2a import create_agent_card
 
@@ -89,3 +90,9 @@ foldrun_agent_card = create_agent_card(
     skills=foldrun_skills,
     streaming=True,
 )
+foldrun_agent_card.preferred_transport = "JSONRPC"
+
+agent_url = os.environ.get("AGENT_BASE_URL", "http://localhost:8080")
+if agent_url.endswith("/"):
+    agent_url = agent_url[:-1]
+foldrun_agent_card.url = agent_url

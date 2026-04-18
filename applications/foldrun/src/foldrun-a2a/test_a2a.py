@@ -21,7 +21,7 @@ from a2a.client.client import ClientConfig
 from a2a.client.middleware import ClientCallInterceptor, ClientCallContext
 from a2a.types import Message, TextPart, Role, TransportProtocol, AgentCard
 
-AGENT_URL = "https://foldrun-a2a-673254409461.us-central1.run.app"
+AGENT_URL = "https://your-cloud-run-url.a.run.app"
 
 
 class CloudRunAuthInterceptor(ClientCallInterceptor):
@@ -75,7 +75,7 @@ async def main():
         agent=agent_url,
         client_config=ClientConfig(
             streaming=True,
-            supported_transports=[TransportProtocol.http_json],
+            supported_transports=[TransportProtocol.jsonrpc],
             httpx_client=httpx.AsyncClient(
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=120.0,

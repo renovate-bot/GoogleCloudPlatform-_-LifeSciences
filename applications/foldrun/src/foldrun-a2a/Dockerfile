@@ -47,4 +47,4 @@ ENV GOOGLE_GENAI_USE_VERTEXAI=1
 
 EXPOSE 8080
 
-CMD exec uvicorn main:app --host 0.0.0.0 --port $PORT --workers 1
+CMD exec python3 main.py

@@ -14,14 +14,11 @@
 
 """FoldRun A2A proxy — thin Cloud Run service that exposes the A2A protocol
 and forwards requests to the FoldRun Agent Engine deployment.
-
-The agent logic runs entirely on Agent Engine; this service only handles
-A2A protocol translation and response streaming.
 """
 
+import asyncio
 import logging
 import os
-from collections.abc import AsyncIterable
 from uuid import uuid4
 
 import uvicorn
@@ -30,18 +27,11 @@ from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import (
-    Artifact,
-    DataPart,
-    Message,
-    Part,
-    Role,
-    Task,
-    TaskArtifactUpdateEvent,
     TaskState,
     TaskStatus,
     TaskStatusUpdateEvent,
-    TextPart,
     UnsupportedOperationError,
+    TextPart,
 )
 from a2a.utils import new_agent_text_message
 from a2a.server.agent_execution import AgentExecutor, RequestContext
@@ -51,23 +41,19 @@ from a2a_agent_card import foldrun_agent_card
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Agent Engine resource for the FoldRun agent
 AGENT_ENGINE_RESOURCE = os.environ.get(
     "AGENT_ENGINE_RESOURCE",
-    "projects/673254409461/locations/us-central1/reasoningEngines/7748725183623462912",
+    "projects/your-project-id/locations/us-central1/reasoningEngines/your-engine-id",
 )
-
 
 class AgentEngineProxyExecutor(AgentExecutor):
     """A2A executor that proxies requests to Agent Engine."""
 
     def __init__(self):
         self._engine = None
-        # Map A2A context IDs to Agent Engine session IDs
         self._sessions: dict[str, str] = {}
 
     def _get_engine(self):
-        """Lazy-load the Agent Engine reference."""
         if self._engine is None:
             from vertexai import agent_engines
             self._engine = agent_engines.get(AGENT_ENGINE_RESOURCE)
@@ -75,7 +61,6 @@ class AgentEngineProxyExecutor(AgentExecutor):
         return self._engine
 
     def _get_or_create_session(self, context_id: str) -> str:
-        """Get or create an Agent Engine session for the given A2A context."""
         if context_id in self._sessions:
             return self._sessions[context_id]
 
@@ -87,36 +72,33 @@ class AgentEngineProxyExecutor(AgentExecutor):
         return session_id
 
     async def execute(self, context: RequestContext, event_queue) -> None:
-        """Execute a request by forwarding to Agent Engine and streaming back."""
-        # Extract the user message text
         user_text = ""
         if context.message and context.message.parts:
             for part in context.message.parts:
                 if isinstance(part.root, TextPart):
                     user_text += part.root.text
 
+        task_id = context.task_id or uuid4().hex
+        context_id = context.context_id
+
         if not user_text:
             await event_queue.enqueue_event(
                 TaskStatusUpdateEvent(
-                    taskId=context.task_id or uuid4().hex,
-                    contextId=context.context_id,
+                    taskId=task_id,
+                    contextId=context_id,
                     final=True,
                     status=TaskStatus(
                         state=TaskState.completed,
                         message=new_agent_text_message(
                             "No text content in request.",
-                            context.task_id or uuid4().hex,
-                            context.context_id,
+                            task_id,
+                            context_id,
                         ),
                     ),
                 )
             )
             return
 
-        task_id = context.task_id or uuid4().hex
-        context_id = context.context_id
-
-        # Signal that we're working
         await event_queue.enqueue_event(
             TaskStatusUpdateEvent(
                 taskId=task_id,
@@ -126,11 +108,9 @@ class AgentEngineProxyExecutor(AgentExecutor):
             )
         )
 
-        # Get or create Agent Engine session
         session_id = self._get_or_create_session(context_id)
         engine = self._get_engine()
 
-        # Stream the query to Agent Engine and collect response
         try:
             full_response = ""
             for chunk in engine.stream_query(
@@ -138,7 +118,6 @@ class AgentEngineProxyExecutor(AgentExecutor):
                 session_id=session_id,
                 message=user_text,
             ):
-                # Extract text from the streaming chunk
                 chunk_text = ""
                 if isinstance(chunk, dict):
                     content = chunk.get("content", {})
@@ -156,7 +135,6 @@ class AgentEngineProxyExecutor(AgentExecutor):
                 if chunk_text:
                     full_response += chunk_text
 
-            # Send completed response
             await event_queue.enqueue_event(
                 TaskStatusUpdateEvent(
                     taskId=task_id,
@@ -194,10 +172,8 @@ class AgentEngineProxyExecutor(AgentExecutor):
     async def cancel(self, context: RequestContext, event_queue) -> None:
         raise UnsupportedOperationError("Cancel not supported")
 
-
 def create_app():
-    # Initialize Vertex AI
-    project = os.environ.get("GOOGLE_CLOUD_PROJECT", "losiern-foldrun6")
+    project = os.environ.get("GOOGLE_CLOUD_PROJECT", "your-project-id")
     location = os.environ.get("GOOGLE_CLOUD_REGION", "us-central1")
     vertexai.init(project=project, location=location)
 
@@ -210,13 +186,12 @@ def create_app():
         agent_card=foldrun_agent_card,
         http_handler=request_handler,
     )
-
+    
     return server.build()
-
 
 app = create_app()
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", "8080"))
     logger.info(f"Starting FoldRun A2A proxy on port {port}...")
     uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)

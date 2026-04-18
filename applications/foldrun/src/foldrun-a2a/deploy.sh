@@ -22,8 +22,8 @@
 #   bash deploy.sh <PROJECT_ID> [SERVICE_NAME] [REGION]
 #
 # Example:
-#   bash deploy.sh losiern-foldrun6
-#   bash deploy.sh losiern-foldrun6 foldrun-a2a us-central1
+#   bash deploy.sh your-project-id
+#   bash deploy.sh your-project-id foldrun-a2a us-central1
 
 set -euo pipefail
 
@@ -70,10 +70,16 @@ echo ""
 # Set the project
 gcloud config set project "${PROJECT_ID}"
 
+# Get existing URL if available to pass to the agent card
+EXISTING_URL=$(gcloud run services describe "${SERVICE_NAME}" --region "${REGION}" --format 'value(status.url)' 2>/dev/null || echo "")
+
 # Env vars — only what the proxy needs
 ENV_VARS="GOOGLE_CLOUD_PROJECT=${PROJECT_ID}"
 ENV_VARS="${ENV_VARS},GOOGLE_CLOUD_REGION=${REGION}"
 ENV_VARS="${ENV_VARS},AGENT_ENGINE_RESOURCE=${AGENT_ENGINE_RESOURCE}"
+if [[ -n "${EXISTING_URL}" ]]; then
+  ENV_VARS="${ENV_VARS},AGENT_BASE_URL=${EXISTING_URL}"
+fi
 
 echo "Step 1: Building container image..."
 gcloud builds submit \
@@ -100,7 +106,7 @@ gcloud run deploy "${SERVICE_NAME}" \
   --network "${VPC_NAME}" \
   --subnet "${SUBNET_NAME}" \
   --vpc-egress all-traffic \
-  --no-allow-unauthenticated
+  --allow-unauthenticated
 
 # Get the service URL
 AGENT_URL=$(gcloud run services describe "${SERVICE_NAME}" \
