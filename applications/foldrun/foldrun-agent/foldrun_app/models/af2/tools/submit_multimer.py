@@ -89,8 +89,15 @@ class AF2SubmitMultimerTool(AF2Tool):
             )
 
         # Validate and prepare FASTA
-        is_fasta_file = os.path.isfile(sequence) if isinstance(sequence, str) else False
+        is_gcs = isinstance(sequence, str) and sequence.startswith("gs://")
+        is_fasta_file = os.path.isfile(sequence) if isinstance(sequence, str) and not is_gcs else False
 
+        if is_gcs:
+            bucket_name = sequence[5:].split("/", 1)[0]
+            blob_path = sequence[5:].split("/", 1)[1]
+            bucket = self.storage_client.bucket(bucket_name)
+            sequence = bucket.blob(blob_path).download_as_text()
+            is_fasta_file = False
         if is_fasta_file:
             fasta_path = sequence
             is_monomer, sequences = validate_fasta_file(fasta_path)
