@@ -38,6 +38,53 @@ def msa_pipeline_boltz2(
     logging.info("Starting BOLTZ2 MSA pipeline")
     t0 = time.time()
 
+    def sto_to_a3m(sto_path: str, a3m_path: str) -> None:
+        """Convert Stockholm alignment to A3M format in pure Python.
+
+        esl-reformat (Easel/HMMER) is not reliably available in all container
+        environments, so we implement the conversion directly.
+
+        A3M rules:
+        - Match columns (where query is non-gap): uppercase residues, gaps kept
+        - Insertion columns (where query is gap): lowercase residues, gaps deleted
+        """
+        seqs: dict = {}
+        order: list = []
+        with open(sto_path) as f:
+            for line in f:
+                line = line.rstrip()
+                if not line or line.startswith("#") or line == "//":
+                    continue
+                parts = line.split(None, 1)
+                if len(parts) == 2:
+                    name, seq = parts
+                    if name not in seqs:
+                        seqs[name] = []
+                        order.append(name)
+                    seqs[name].append(seq)
+
+        if not order:
+            open(a3m_path, "w").close()
+            return
+
+        # Identify match columns from the query (first sequence)
+        query_seq = "".join(seqs[order[0]])
+        match_cols = {i for i, c in enumerate(query_seq) if c != "-"}
+
+        with open(a3m_path, "w") as out:
+            for name in order:
+                full_seq = "".join(seqs[name])
+                a3m_residues = []
+                for i, c in enumerate(full_seq):
+                    if i in match_cols:
+                        # Match column: keep residue (uppercase) or gap
+                        a3m_residues.append(c.upper() if c != "-" else c)
+                    else:
+                        # Insertion column: lowercase residues, skip gaps
+                        if c not in ("-", "."):
+                            a3m_residues.append(c.lower())
+                out.write(f">{name}\n{''.join(a3m_residues)}\n")
+
     mount_path = ref_databases.uri
 
     # Read query YAML (KFP artifacts still use query_json parameter name)
@@ -59,8 +106,8 @@ def msa_pipeline_boltz2(
             prot_data = seq_entry["protein"]
             seq_id = prot_data.get("id", f"seq_{i}")
             if isinstance(seq_id, list):
-                seq_id = seq_id[0] # handle [A, B] identical chains
-            
+                seq_id = seq_id[0]  # handle [A, B] identical chains
+
             # Run jackhmmer for protein sequences
             seq_msa_dir = os.path.join(msa_output_dir, str(seq_id))
             os.makedirs(seq_msa_dir, exist_ok=True)
@@ -88,9 +135,7 @@ def msa_pipeline_boltz2(
                 ],
                 check=True,
             )
-            # Convert to a3m using esl-reformat (installed via hmmer)
-            with open(uniref90_a3m, "w") as f:
-                subprocess.run(["esl-reformat", "a3m", uniref90_sto], stdout=f, check=True)
+            sto_to_a3m(uniref90_sto, uniref90_a3m)
 
             # Jackhmmer against mgnify
             mgnify_sto = os.path.join(seq_msa_dir, "mgnify.sto")
@@ -110,9 +155,7 @@ def msa_pipeline_boltz2(
                 ],
                 check=True,
             )
-            # Convert to a3m
-            with open(mgnify_a3m, "w") as f:
-                subprocess.run(["esl-reformat", "a3m", mgnify_sto], stdout=f, check=True)
+            sto_to_a3m(mgnify_sto, mgnify_a3m)
 
             # Combine A3M files
             combined_a3m = os.path.join(seq_msa_dir, "combined.a3m")
