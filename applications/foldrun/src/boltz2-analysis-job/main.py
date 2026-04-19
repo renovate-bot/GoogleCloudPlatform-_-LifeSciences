@@ -1197,7 +1197,18 @@ def consolidate_results(job_id: str, analysis_path: str, affinity_uri: str | Non
         if hasattr(job, "runtime_config") and hasattr(
             job.runtime_config, "parameter_values"
         ):
-            pipeline_parameters = dict(job.runtime_config.parameter_values)
+            # parameter_values is map<string, google.protobuf.Value> via the raw
+            # aiplatform_v1 client. Values are proto Value messages, not Python
+            # primitives — extract the appropriate field based on value type.
+            for k, v in job.runtime_config.parameter_values.items():
+                if hasattr(v, "string_value") and v.string_value:
+                    pipeline_parameters[k] = v.string_value
+                elif hasattr(v, "number_value") and v.number_value:
+                    pipeline_parameters[k] = v.number_value
+                elif hasattr(v, "bool_value"):
+                    pipeline_parameters[k] = v.bool_value
+                else:
+                    pipeline_parameters[k] = str(v)
 
         job_metadata = {
             "display_name": job.display_name if hasattr(job, "display_name") else None,
@@ -1267,8 +1278,13 @@ def consolidate_results(job_id: str, analysis_path: str, affinity_uri: str | Non
         if hasattr(job, "runtime_config") and hasattr(
             job.runtime_config, "parameter_values"
         ):
-            query_yaml_path = job.runtime_config.parameter_values.get("query_json_path")
-            if query_yaml_path and isinstance(query_yaml_path, str):
+            # parameter_values contains google.protobuf.Value objects — extract string
+            _raw = job.runtime_config.parameter_values.get("query_json_path")
+            query_yaml_path = (
+                _raw.string_value if hasattr(_raw, "string_value") else
+                _raw if isinstance(_raw, str) else None
+            )
+            if query_yaml_path:
                 raw_yaml = download_text_from_gcs(query_yaml_path)
                 query_data = yaml.safe_load(raw_yaml)
                 input_query_yaml = query_data
