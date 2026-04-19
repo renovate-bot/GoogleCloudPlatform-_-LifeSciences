@@ -1296,23 +1296,25 @@ def consolidate_results(job_id: str, analysis_path: str, affinity_uri: str | Non
             f"gs://{bucket_name_from_analysis}/boltz2_queries/{query_name_label}.yaml"
             if query_name_label else None
         )
+        logger.info(f"Query YAML extraction: label={query_name_label!r} path={query_yaml_path!r} all_labels_keys={list(all_labels.keys())}")
 
         if query_yaml_path:
-                raw_yaml = download_text_from_gcs(query_yaml_path)
-                query_data = yaml.safe_load(raw_yaml)
-                input_query_yaml = query_data
+            raw_yaml = download_text_from_gcs(query_yaml_path)
+            query_data = yaml.safe_load(raw_yaml)
+            input_query_yaml = query_data
+            logger.info(f"Loaded input query YAML from {query_yaml_path}")
 
-                # Extract protein sequences for display
-                seqs = []
-                for entry in query_data.get("sequences", []):
-                    if "protein" in entry:
-                        seq_id = entry["protein"].get("id", "A")
-                        if isinstance(seq_id, list):
-                            seq_id = seq_id[0]
-                        if not fasta_header:
-                            fasta_header = str(seq_id)
-                        seqs.append(entry["protein"].get("sequence", ""))
-                fasta_sequence = "/".join(seqs) if seqs else None
+            # Extract protein sequences for display
+            seqs = []
+            for entry in query_data.get("sequences", []):
+                if "protein" in entry:
+                    seq_id = entry["protein"].get("id", "A")
+                    if isinstance(seq_id, list):
+                        seq_id = seq_id[0]
+                    if not fasta_header:
+                        fasta_header = str(seq_id)
+                    seqs.append(entry["protein"].get("sequence", ""))
+            fasta_sequence = "/".join(seqs) if seqs else None
     except Exception as e:
         logger.warning(f"Could not load input sequence: {e}")
 
