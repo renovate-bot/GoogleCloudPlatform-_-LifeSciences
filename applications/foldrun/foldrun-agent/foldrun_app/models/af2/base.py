@@ -100,17 +100,19 @@ class AF2Tool(BaseTool):
         Auto-selection tiers (gpu_type='auto'):
 
             Monomer:
-                <500 residues   → L4       (24 GB VRAM)   ~$0.50-1.50/pred
-                500-1500        → A100     (40 GB VRAM)   ~$2-5/pred
+                <=1500 residues → A100     (40 GB VRAM)   ~$2-5/pred
                 >1500           → A100_80GB (80 GB VRAM)  ~$5-15/pred
 
             Multimer (total residues across all chains):
                 <1000           → A100     (40 GB VRAM)
                 >=1000          → A100_80GB (80 GB VRAM)
 
-        Relax GPU is auto-downgraded per tier (AMBER is less demanding):
-            L4 predict       → L4 relax
-            A100 predict     → L4 relax
+        L4 is no longer auto-selected — it provisions slowly under DWS FLEX_START
+        and A100 capacity is typically deeper. Users can still request L4 explicitly
+        with gpu_type='L4' but should expect longer queue times.
+
+        Relax GPU matches the predict tier (AMBER runs on the same machine):
+            A100 predict      → A100 relax
             A100_80GB predict → A100 relax
 
         Users can always override by passing an explicit gpu_type value
@@ -130,9 +132,7 @@ class AF2Tool(BaseTool):
         else:
             if seq_length > 1500:
                 return "A100_80GB"
-            if seq_length >= 500:
-                return "A100"
-            return "L4"
+            return "A100"  # L4 no longer auto-selected; A100 provisions faster via DWS
 
     def _get_hardware_config(
         self,
@@ -222,8 +222,8 @@ class AF2Tool(BaseTool):
                 "predict_machine": "a2-highgpu-1g",
                 "predict_accel": "NVIDIA_TESLA_A100",
                 "predict_count": 1,
-                "relax_machine": "g2-standard-12",  # Downgrade to L4 for cost savings
-                "relax_accel": "NVIDIA_L4",
+                "relax_machine": "a2-highgpu-1g",  # Keep A100 — L4 is slow to provision
+                "relax_accel": "NVIDIA_TESLA_A100",
                 "relax_count": 1,
             },
             "A100_80GB": {

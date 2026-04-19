@@ -66,28 +66,9 @@ def _convert_proto_to_dict(obj: Any) -> Any:
         return None
 
 
-def get_pipeline_job(job_id: str, project_id: str, region: str) -> vertex_ai.PipelineJob:
-    """
-    Get pipeline job by ID.
-
-    Args:
-        job_id: Full job ID or just the job name
-        project_id: GCP project ID
-        region: GCP region
-
-    Returns:
-        PipelineJob object
-    """
-    client = vertex_ai.PipelineServiceClient(
-        client_options={"api_endpoint": f"{region}-aiplatform.googleapis.com"}
-    )
-
-    # Handle both full and short job IDs
-    if not job_id.startswith("projects/"):
-        job_id = f"projects/{project_id}/locations/{region}/pipelineJobs/{job_id}"
-
-    request = vertex_ai.GetPipelineJobRequest(name=job_id)
-    return client.get_pipeline_job(request=request)
+# Re-exported from core for backward compatibility — all model plugins should
+# import from foldrun_app.core.vertex_utils directly.
+from foldrun_app.core.vertex_utils import get_pipeline_job as get_pipeline_job  # noqa: F401
 
 
 def list_pipeline_jobs(

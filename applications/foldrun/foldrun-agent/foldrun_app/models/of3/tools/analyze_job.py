@@ -160,7 +160,7 @@ class OF3JobAnalysisTool(OF3Tool):
         logger.info(f"Starting OF3 parallel analysis for job {job_id}")
 
         # Get job from Vertex AI
-        from foldrun_app.models.af2.utils.vertex_utils import get_pipeline_job
+        from foldrun_app.core.vertex_utils import get_pipeline_job
 
         try:
             job = get_pipeline_job(job_id, self.config.project_id, self.config.region)
