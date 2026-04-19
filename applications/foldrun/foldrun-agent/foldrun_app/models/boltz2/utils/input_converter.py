@@ -18,12 +18,16 @@ def _detect_molecule_type(sequence: str) -> str:
     return "protein"
 
 def fasta_to_boltz2_yaml(fasta_content: str, job_name: Optional[str] = None) -> str:
-    """Convert FASTA content to BOLTZ2 query YAML format."""
+    """Convert FASTA content (or raw sequence) to BOLTZ2 query YAML format."""
+    content = fasta_content.strip()
+    if not content.startswith(">"):
+        content = f">sequence\n{content}"
+
     parsed = []
     current_id = None
     current_seq_lines = []
 
-    for line in fasta_content.strip().split("\n"):
+    for line in content.split("\n"):
         line = line.strip()
         if not line:
             continue

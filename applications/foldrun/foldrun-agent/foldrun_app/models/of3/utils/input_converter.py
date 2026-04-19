@@ -62,17 +62,21 @@ def fasta_to_of3_json(fasta_content: str, job_name: Optional[str] = None) -> dic
     """Convert FASTA content to OF3 query JSON format.
 
     Args:
-        fasta_content: FASTA format string (one or more sequences).
+        fasta_content: FASTA format string (one or more sequences) or raw sequence.
         job_name: Optional query name.
 
     Returns:
         OF3 query JSON dictionary matching the run_openfold schema.
     """
+    content = fasta_content.strip()
+    if not content.startswith(">"):
+        content = f">sequence\n{content}"
+
     parsed = []
     current_id = None
     current_seq_lines = []
 
-    for line in fasta_content.strip().split("\n"):
+    for line in content.split("\n"):
         line = line.strip()
         if not line:
             continue
