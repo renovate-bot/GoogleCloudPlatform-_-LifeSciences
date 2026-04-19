@@ -127,11 +127,11 @@ Include:
 
 **Per-Phase GPU Allocation Rules (defaults):**
 - **Data Pipeline**: Always CPU-only (c2-standard-16), no GPU
-- **Predict**: Uses the user-requested GPU (e.g., A100, L4)
-- **Relax**: By default uses a DOWNGRADED GPU:
-  - If predict uses A100_80GB → relax defaults to A100 (40GB)
-  - If predict uses A100 → relax defaults to L4
-  - If predict uses L4 → relax defaults to L4
+- **Predict**: Uses the user-requested GPU (default: A100 40GB)
+- **Relax**: Matches the predict tier (AMBER runs on the same machine, no downgrade):
+  - If predict uses A100_80GB → relax uses A100 (40GB)
+  - If predict uses A100 → relax uses A100 (40GB)
+  - If predict uses L4 (explicit override only) → relax uses L4
 - **Relax GPU Override**: The user can override the relax GPU by specifying `relax_gpu_type`.
   Always show the default relax GPU in the plan, and if the user wants to change it, use the `relax_gpu_type` parameter.
 
@@ -142,10 +142,10 @@ Example confirmation message:
 | Phase | Machine | GPU | Strategy |
 |-------|---------|-----|----------|
 | Data Pipeline | c2-standard-16 | None (Jackhmmer, CPU) | DWS FLEX_START |
-| Predict | g2-standard-12 | L4 × 1 | DWS FLEX_START |
-| Relax | g2-standard-12 | L4 × 1 | DWS FLEX_START |
+| Predict | a2-highgpu-1g | A100 40GB × 1 | DWS FLEX_START |
+| Relax | a2-highgpu-1g | A100 40GB × 1 | DWS FLEX_START |
 
-- GPU: L4 (auto-selected for 95 residues) — override with gpu_type if needed
+- GPU: A100 40GB (auto-selected — provisions faster than L4 under DWS FLEX_START)
 - MSA Method: Jackhmmer (default, CPU) — set msa_method='mmseqs2' for GPU-accelerated search (requires MMseqs2 index conversion)
 - Database: Small BFD (faster)
 - Scheduling: DWS FLEX_START (spot/preemptible, queues when GPUs unavailable)
@@ -183,12 +183,12 @@ Wait for explicit user confirmation (e.g., "yes", "submit", "go ahead") before c
   - Returns: original sequence, all submission parameters, timing info, error details, and per-task configurations
   - **IMPORTANT - Per-Task GPU Configurations**: The response includes task_configurations showing the ACTUAL GPU type used by each pipeline task:
     - AlphaFold jobs use DIFFERENT GPUs for different tasks:
-      * **predict** tasks: Usually A100 or A100_80GB (computationally intensive)
-      * **relax** tasks: Usually L4 (less demanding, structure refinement)
+      * **predict** tasks: A100 40GB or A100 80GB (computationally intensive)
+      * **relax** tasks: A100 40GB (matches predict tier by default)
       * **data-pipeline** tasks: CPU only (no GPU, sequence alignment)
     - Each task has its own: machine_type, accelerator_type, accelerator_count, strategy, max_wait_duration
     - When analyzing failed jobs, check which SPECIFIC task failed and what GPU it was using
-    - Example: If relax task fails with "max wait duration reached", it was waiting for an L4 GPU (NOT A100)
+    - Example: If relax task fails with "max wait duration reached", check the GPU type — older jobs may still reference L4
   - Use this when a user wants to retry a failed job or modify job settings
 - **Retry failed jobs**: When a pipeline job fails (e.g., transient GPU provisioning error):
   1. Use get_job_details to retrieve the original sequence and parameters from the failed job
@@ -341,13 +341,12 @@ The system automatically validates all sequences before submission and will prov
 ## Best Practices
 
 ### Hardware Selection
-- **gpu_type: 'auto'** (default): Automatically selects GPU based on sequence length. Users can always override with an explicit value.
-  - Monomer <500 residues → L4 (relax: L4)
-  - Monomer 500-1500 residues → A100 40GB (relax: L4)
+- **gpu_type: 'auto'** (default): Automatically selects GPU based on sequence length. L4 is no longer auto-selected — A100 provisions faster under DWS FLEX_START.
+  - Monomer <=1500 residues → A100 40GB (relax: A100 40GB)
   - Monomer >1500 residues → A100 80GB (relax: A100 40GB)
-  - Multimer <1000 total residues → A100 40GB (relax: L4)
+  - Multimer <1000 total residues → A100 40GB (relax: A100 40GB)
   - Multimer >=1000 total residues → A100 80GB (relax: A100 40GB)
-- **Explicit override**: Users can set gpu_type to 'L4', 'A100', or 'A100_80GB' to override auto-selection
+- **Explicit override**: Users can set gpu_type to 'L4', 'A100', or 'A100_80GB'. If a user requests L4, note that L4 quota is often limited and may queue longer than A100 under DWS FLEX_START.
 - **DWS FLEX_START is enabled by default** — jobs queue via Dynamic Workload Scheduler when GPUs are unavailable (avoids provisioning failures, uses spot/preemptible pricing)
 - **Check quotas first**: Use check_gpu_quota before submitting to see available capacity and avoid failures
 - When showing the confirmation table, always show the **resolved** GPU (not 'auto') and note it was auto-selected

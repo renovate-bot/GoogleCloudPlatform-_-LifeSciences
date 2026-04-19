@@ -525,9 +525,9 @@ class TestRecommendGpu:
     # -- Monomer tiers --
 
     def test_monomer_small(self):
-        """Monomer <500 residues → L4."""
-        assert self._recommend(100) == "L4"
-        assert self._recommend(499) == "L4"
+        """Monomer <=1500 residues → A100 (L4 no longer auto-selected)."""
+        assert self._recommend(100) == "A100"
+        assert self._recommend(499) == "A100"
 
     def test_monomer_medium(self):
         """Monomer 500-1500 residues → A100."""
@@ -555,8 +555,8 @@ class TestRecommendGpu:
     # -- Edge cases --
 
     def test_zero_length_monomer(self):
-        """Zero-length monomer → L4 (smallest tier)."""
-        assert self._recommend(0) == "L4"
+        """Zero-length monomer → A100 (L4 no longer auto-selected)."""
+        assert self._recommend(0) == "A100"
 
     def test_zero_length_multimer(self):
         """Zero-length multimer → A100 (smallest multimer tier)."""
@@ -581,10 +581,10 @@ class TestAutoSelection:
             return AF2Tool(tool_config, config)
 
     def test_auto_gpu_monomer_small(self, mock_env_vars):
-        """gpu_type='auto' for 200-residue monomer → L4."""
+        """gpu_type='auto' for 200-residue monomer → A100 (L4 no longer auto-selected)."""
         tool = self._make_tool(mock_env_vars)
         config = tool._get_hardware_config("auto", seq_length=200, is_multimer=False)
-        assert config["predict_accel"] == "NVIDIA_L4"
+        assert config["predict_accel"] == "NVIDIA_TESLA_A100"
 
     def test_auto_gpu_monomer_medium(self, mock_env_vars):
         """gpu_type='auto' for 800-residue monomer → A100."""

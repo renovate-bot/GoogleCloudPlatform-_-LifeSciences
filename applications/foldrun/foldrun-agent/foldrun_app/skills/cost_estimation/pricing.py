@@ -268,21 +268,19 @@ def _auto_select_gpu(job_type: str, sequence_length: int) -> str:
         return "A100" if sequence_length <= 2000 else "A100_80GB"
     elif job_type == "af2_multimer":
         return "A100" if sequence_length < 1000 else "A100_80GB"
-    else:  # af2_monomer
-        if sequence_length < 500:
-            return "L4"
-        elif sequence_length <= 1500:
+    else:  # af2_monomer — L4 no longer auto-selected (provisions slowly under DWS)
+        if sequence_length <= 1500:
             return "A100"
         return "A100_80GB"
 
 
 def _relax_gpu(predict_gpu: str) -> str:
-    """Determine relax GPU (downgraded from predict GPU)."""
+    """Determine relax GPU. Matches predict tier — no downgrade to L4."""
     return {
         "A100_80GB": "A100",
-        "A100": "L4",
-        "L4": "L4",
-    }.get(predict_gpu, "L4")
+        "A100": "A100",
+        "L4": "L4",  # only when user explicitly requested L4
+    }.get(predict_gpu, "A100")
 
 
 def _machine_for_gpu(gpu_type: str) -> str:
