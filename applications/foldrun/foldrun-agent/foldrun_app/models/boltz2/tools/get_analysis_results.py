@@ -155,7 +155,7 @@ class BOLTZ2GetAnalysisResultsTool(BOLTZ2Tool):
             raise ValueError("job_id is required")
 
         # Get the job object
-        from foldrun_app.models.af2.utils.vertex_utils import get_pipeline_job
+        from foldrun_app.core.vertex_utils import get_pipeline_job
 
         try:
             job = get_pipeline_job(job_id, self.config.project_id, self.config.region)
