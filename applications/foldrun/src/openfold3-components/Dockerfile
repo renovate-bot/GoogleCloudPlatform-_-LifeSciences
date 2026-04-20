@@ -1,11 +1,13 @@
 ARG OF3_VERSION="0.3.1"
 FROM openfoldconsortium/openfold3:${OF3_VERSION}
 
-# Install HMMER suite (jackhmmer, nhmmer) with OpenBLAS dependency for MSA search.
-# The base OF3 image includes a jackhmmer binary but is missing libopenblas.so.0,
-# causing exit code 127 at runtime. Installing hmmer via apt pulls in all required libs.
+# The base OF3 image installs jackhmmer via conda (at /opt/conda/bin/jackhmmer).
+# That binary is dynamically linked to libopenblas.so.0, but the conda environment
+# doesn't include OpenBLAS, causing exit code 127 at runtime.
+# Installing libopenblas0 via apt puts the library in the system path (/usr/lib/...)
+# where the dynamic linker finds it for the conda jackhmmer binary.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        hmmer \
+        libopenblas0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Do NOT bake in weights — they come from NFS at runtime
