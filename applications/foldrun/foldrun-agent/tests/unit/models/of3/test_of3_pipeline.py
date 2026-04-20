@@ -144,10 +144,11 @@ class TestOF3MSAPipelineSource:
         assert "uuid" in source
 
     def test_msa_runs_jackhmmer_uniref90_and_mgnify(self):
-        """MSA pipeline runs jackhmmer against uniref90 and mgnify."""
+        """MSA pipeline runs jackhmmer against uniref90 and mgnify with OF3 expected names."""
         source = self._read_msa_source()
-        assert "uniref90.sto" in source
-        assert "mgnify.sto" in source
+        # Files must use "_hits" suffix — OF3's MSASettings.max_seq_counts filters by basename
+        assert "uniref90_hits.sto" in source
+        assert "mgnify_hits.sto" in source
 
     def test_msa_template_search_against_pdb_seqres(self):
         """MSA pipeline runs jackhmmer against pdb_seqres for template alignment."""

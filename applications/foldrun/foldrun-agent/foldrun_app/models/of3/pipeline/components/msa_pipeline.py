@@ -103,8 +103,10 @@ def msa_pipeline_of3(
 
                 msa_files = []
 
-                # Jackhmmer against UniRef90
-                uniref90_sto = os.path.join(seq_dir, "uniref90.sto")
+                # Jackhmmer against UniRef90.
+                # File must be named "uniref90_hits.sto" — OF3's MSASettings.max_seq_counts
+                # filters by basename and expects the "_hits" suffix for all MSA files.
+                uniref90_sto = os.path.join(seq_dir, "uniref90_hits.sto")
                 subprocess.run(
                     [
                         "jackhmmer",
@@ -122,8 +124,8 @@ def msa_pipeline_of3(
                 )
                 msa_files.append(uniref90_sto)
 
-                # Jackhmmer against MGnify
-                mgnify_sto = os.path.join(seq_dir, "mgnify.sto")
+                # Jackhmmer against MGnify ("mgnify_hits.sto" for same reason)
+                mgnify_sto = os.path.join(seq_dir, "mgnify_hits.sto")
                 subprocess.run(
                     [
                         "jackhmmer",
@@ -192,9 +194,9 @@ def msa_pipeline_of3(
 
                 rna_files = []
 
-                # nhmmer against Rfam
+                # nhmmer against Rfam ("rfam_hits.sto" per OF3 max_seq_counts convention)
                 if rfam_path and os.path.exists(rfam_path):
-                    rfam_sto = os.path.join(seq_dir, "rfam.sto")
+                    rfam_sto = os.path.join(seq_dir, "rfam_hits.sto")
                     subprocess.run(
                         [
                             "nhmmer",
@@ -210,9 +212,9 @@ def msa_pipeline_of3(
                     )
                     rna_files.append(rfam_sto)
 
-                # nhmmer against RNAcentral
+                # nhmmer against RNAcentral ("rnacentral_hits.sto" per same convention)
                 if rnacentral_path and os.path.exists(rnacentral_path):
-                    rnacentral_sto = os.path.join(seq_dir, "rnacentral.sto")
+                    rnacentral_sto = os.path.join(seq_dir, "rnacentral_hits.sto")
                     subprocess.run(
                         [
                             "nhmmer",
