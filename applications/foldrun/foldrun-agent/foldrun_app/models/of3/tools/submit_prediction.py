@@ -51,6 +51,17 @@ class OF3SubmitPredictionTool(OF3Tool):
         Returns:
             Job submission details.
         """
+        # Pre-flight check for OF3 parameters in GCS
+        bucket = self.storage_client.bucket(self.config.databases_bucket_name)
+        if not bucket.blob(self.config.params_path).exists():
+            return {
+                "status": "error",
+                "message": (
+                    f"OpenFold3 parameters file ({self.config.params_path}) was not found in GCS bucket gs://{self.config.databases_bucket_name}. "
+                    f"Please update your data using `./deploy-all.sh {self.config.project_id} --steps data --db of3_params --force`"
+                )
+            }
+
         input_data = arguments.get("input")
         job_name = arguments.get("job_name", f"of3_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
         num_model_seeds = arguments.get("num_model_seeds", 1)
@@ -58,6 +69,11 @@ class OF3SubmitPredictionTool(OF3Tool):
         gpu_type = arguments.get("gpu_type", "auto")
         enable_flex_start = arguments.get("enable_flex_start", True)
         use_templates = arguments.get("use_templates", True)
+
+        import random
+        base_seed = arguments.get("base_seed")
+        if base_seed is None:
+            base_seed = random.randint(0, 2**32 - 1)
 
         # Determine input type and load content
         is_gcs = isinstance(input_data, str) and input_data.startswith("gs://")
@@ -169,6 +185,7 @@ class OF3SubmitPredictionTool(OF3Tool):
                 "num_model_seeds": num_model_seeds,
                 "num_diffusion_samples": num_diffusion_samples,
                 "use_templates": use_templates,
+                "base_seed": base_seed,
             },
             "enable_caching": True,
             "labels": labels,
@@ -205,6 +222,7 @@ class OF3SubmitPredictionTool(OF3Tool):
                 "num_model_seeds": num_model_seeds,
                 "num_diffusion_samples": num_diffusion_samples,
                 "use_templates": use_templates,
+                "base_seed": base_seed,
             },
             "hardware": {
                 "msa_pipeline": f"{hardware_config['msa_machine']} (CPU-only, Jackhmmer/nhmmer{', +pdb_seqres template search' if use_templates else ''})",
