@@ -1,0 +1,9 @@
+# OS
+.DS_Store
+
+# Editor / agent scratch files
+AGENTS.md
+GEMINI.md
+CLAUDE.md
+llms-full.txt
+llms.txt
