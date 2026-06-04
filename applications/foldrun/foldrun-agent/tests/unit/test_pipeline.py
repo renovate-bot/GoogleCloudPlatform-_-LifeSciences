@@ -24,7 +24,7 @@ import pytest
 @pytest.fixture(autouse=True)
 def mock_env_vars():
     env = {
-        "GOOGLE_GENAI_USE_VERTEXAI": "true",
+        "GOOGLE_GENAI_USE_ENTERPRISE": "true",
         "GCP_PROJECT_ID": "test-project",
         "GCP_REGION": "us-central1",
         "GCP_ZONE": "us-central1-a",
@@ -32,7 +32,7 @@ def mock_env_vars():
         "GCS_DATABASES_BUCKET": "test-databases-bucket",
         "FILESTORE_ID": "test-nfs",
         "ALPHAFOLD_COMPONENTS_IMAGE": "test-image:latest",
-        "GEMINI_MODEL": "gemini-3-flash-preview",
+        "GEMINI_MODEL": "gemini-3.5-flash",
         "GOOGLE_CLOUD_PROJECT": "test-project",
         "GOOGLE_CLOUD_LOCATION": "global",
     }

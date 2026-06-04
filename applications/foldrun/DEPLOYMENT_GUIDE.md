@@ -362,7 +362,7 @@ gcloud run services describe foldrun-a2a --region=YOUR_REGION --format='value(st
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | `401 Unauthorized` or `Reauthentication required` | Expired local credentials | `gcloud auth login && gcloud auth application-default login` |
-| `GOOGLE_GENAI_USE_VERTEXAI` errors | Agent trying to use API keys instead of IAM | Ensure `GOOGLE_GENAI_USE_VERTEXAI=true` is set in the agent's env vars (Cloud Build sets this automatically) |
+| `GOOGLE_GENAI_USE_ENTERPRISE` errors | Agent trying to use API keys instead of IAM | Ensure `GOOGLE_GENAI_USE_ENTERPRISE=true` is set in the agent's env vars (Cloud Build sets this automatically) |
 | GPU quota exceeded / no capacity | Insufficient GPU quota or regional availability | Check quota page; enable DWS FLEX_START scheduling (default) to queue for capacity |
 | `service account does not exist` | SA created asynchronously after API enablement | Wait 60 seconds and retry — Terraform includes a sleep for this |
 | Cloud Build timeout | OF3 components image is large (~15 min first build) | Re-run `./deploy-all.sh --steps build`; subsequent builds use Docker layer caching |

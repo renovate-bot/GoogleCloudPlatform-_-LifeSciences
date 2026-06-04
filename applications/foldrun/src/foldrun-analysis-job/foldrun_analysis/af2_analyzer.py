@@ -189,20 +189,14 @@ IMPORTANT: Begin your response directly with the report. Do NOT include any prea
                 logger.warning(f"Could not include PAE plot: {e}")
 
         gemini_model = os.getenv("GEMINI_MODEL", "gemini-3.1-pro-preview")
-        project_id = os.environ["PROJECT_ID"]
-        location = (
-            "global"
-            if "preview" in gemini_model
-            else os.getenv("REGION", "us-central1")
-        )
+        project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+        location = os.getenv("GOOGLE_CLOUD_LOCATION")
 
         logger.info(
             f"Initializing Google GenAI: project={project_id}, location={location}, model={gemini_model}"
         )
 
-        with genai.Client(
-            vertexai=True, project=project_id, location=location
-        ) as client:
+        with genai.Client() as client:
             response = client.models.generate_content(
                 model=gemini_model,
                 contents=content_parts,

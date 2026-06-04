@@ -300,6 +300,6 @@ Recommended CI setup:
 - name: Integration Tests
   env:
     GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
-    GOOGLE_GENAI_USE_VERTEXAI: "true"
+    GOOGLE_GENAI_USE_ENTERPRISE: "true"
   run: .venv/bin/python -m pytest tests/integration/ -v -m integration
 ```

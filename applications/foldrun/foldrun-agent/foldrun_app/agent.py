@@ -893,23 +893,16 @@ def create_alphafold_agent(model: str = None) -> Agent:
     """Create and configure the FoldRun agent (AF2 + OF3) with native ADK tools.
 
     Args:
-        model: Gemini model to use (default: gemini-flash-latest)
-               Supported: gemini-3-flash-preview, gemini-3.1-pro-preview
+        model: Gemini model to use (default: gemini-3.5-flash)
+               Supported: gemini-3.5-flash, gemini-3.1-pro-preview
 
     Returns:
         Configured Agent instance ready for use
     """
-    gemini_model = model or os.getenv("GEMINI_MODEL", "gemini-3-flash-preview")
-
-    # Preview models require the global endpoint. Agent Runtime overrides
-    # GOOGLE_CLOUD_LOCATION to its deployment region (e.g. us-central1),
-    # but preview models only exist at global. Force it here before the
-    # genai client is created.
-    if "preview" in gemini_model:
-        os.environ["GOOGLE_CLOUD_LOCATION"] = "global"
+    gemini_model = model or os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
 
     # Validate model choice
-    allowed_models = ["gemini-3-flash-preview", "gemini-3.1-pro-preview"]
+    allowed_models = ["gemini-3.5-flash", "gemini-3.1-pro-preview"]
     if gemini_model not in allowed_models:
         raise ValueError(
             f"Model '{gemini_model}' not supported. Use one of: {', '.join(allowed_models)}"

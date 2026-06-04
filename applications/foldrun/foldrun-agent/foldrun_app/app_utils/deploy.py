@@ -248,7 +248,7 @@ def deploy_agent_engine_app(
     # Agent Runtime doesn't allow setting these as they are managed by the platform
     reserved_vars = [
         "GOOGLE_CLOUD_PROJECT",
-        "GOOGLE_CLOUD_LOCATION",
+        "GOOGLE_CLOUD_AGENT_ENGINE_LOCATION",
         "PYTHONPATH",
         "USER",
     ]
@@ -262,9 +262,6 @@ def deploy_agent_engine_app(
     env_vars = filtered_env_vars
 
     # Set deployment-specific environment variables
-    # Note: GOOGLE_CLOUD_REGION might be allowed or also reserved, usually REGION is fine but LOCATION is not.
-    # We'll set it as requested by the original code, but keep an eye on it.
-    env_vars["GOOGLE_CLOUD_REGION"] = location
     env_vars["NUM_WORKERS"] = str(num_workers)
 
     # Enable telemetry by default for Agent Runtime
@@ -312,7 +309,6 @@ def deploy_agent_engine_app(
         project=project,
         location=location,
     )
-    vertexai.init(project=project, location=location)
 
     # Add agent garden labels if configured
 

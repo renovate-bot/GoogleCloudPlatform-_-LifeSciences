@@ -64,12 +64,16 @@ resource "google_cloud_run_v2_job" "foldrun_analysis_job" {
           value = google_storage_bucket.foldrun_bucket.name
         }
         env {
-          name  = "PROJECT_ID"
+          name  = "GOOGLE_CLOUD_PROJECT"
           value = var.project_id
         }
         env {
-          name  = "REGION"
-          value = var.region
+          name  = "GOOGLE_CLOUD_LOCATION"
+          value = var.model_endpoint_location
+        }
+        env {
+          name  = "GOOGLE_GENAI_USE_ENTERPRISE"
+          value = "1"
         }
 
         resources {

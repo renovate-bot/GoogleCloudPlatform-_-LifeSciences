@@ -125,12 +125,12 @@ def mock_env_vars(mock_env_vars, monkeypatch):
     Configures the genai SDK to use Agent Platform with ADC so integration
     tests make real LLM calls via Application Default Credentials.
     """
-    monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
+    monkeypatch.setenv("GOOGLE_GENAI_USE_ENTERPRISE", "true")
     # Use global endpoint for preview models (Gemini API location only)
     monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "global")
     # GCP_REGION must be a valid Compute Engine region (used by GPU quota checks)
     monkeypatch.setenv("GCP_REGION", "us-central1")
-    monkeypatch.setenv("GEMINI_MODEL", "gemini-3-flash-preview")
+    monkeypatch.setenv("GEMINI_MODEL", "gemini-3.5-flash")
     return mock_env_vars
 
 

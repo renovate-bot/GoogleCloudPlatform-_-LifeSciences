@@ -261,6 +261,7 @@ extract_terraform_outputs() {
             v=$(_tf subnet_id);              if [[ -n "$v" ]]; then echo "SUBNET_ID=$v"; fi
             v=$(_tf network_id);             if [[ -n "$v" ]]; then echo "NETWORK_ID=$v"; fi
             v=$(_tf network_project_number); if [[ -n "$v" ]]; then echo "NETWORK_PROJECT_NUMBER=$v"; fi
+            v=$(_tf model_endpoint_location); if [[ -n "$v" ]]; then echo "MODEL_ENDPOINT_LOCATION=$v"; fi
         ) > "$_tf_env" 2>/dev/null || true
         while IFS='=' read -r key val; do
             [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && export "$key"="$val"
@@ -279,6 +280,7 @@ extract_terraform_outputs() {
     echo "  SUBNET_ID=$SUBNET_ID"
     echo "  NETWORK_ID=$NETWORK_ID"
     echo "  NETWORK_PROJECT_NUMBER=$NETWORK_PROJECT_NUMBER"
+    echo "  MODEL_ENDPOINT_LOCATION=$MODEL_ENDPOINT_LOCATION"
 }
 
 # ==============================================================================
@@ -342,11 +344,12 @@ if $run_build; then
     echo "  _PIPELINES_SA_EMAIL=${PIPELINES_SA_EMAIL}"
     echo "  _DATABASES_BUCKET=${DATABASES_BUCKET}"
     echo "  _DOWNLOAD_MODE=${DOWNLOAD_MODE}"
+    echo "  _MODEL_ENDPOINT_LOCATION=${MODEL_ENDPOINT_LOCATION}"
 
     gcloud builds submit . \
         --config cloudbuild.yaml \
         --project "$PROJECT_ID" \
-        --substitutions=_REGION="$REGION",_BUCKET_NAME="$GCS_BUCKET",_FILESTORE_ID="$FILESTORE_ID",_AR_REPO="$AR_REPO",_AGENT_SA_EMAIL="$AGENT_SA_EMAIL",_PIPELINES_SA_EMAIL="$PIPELINES_SA_EMAIL",_DATABASES_BUCKET="$DATABASES_BUCKET",_NETWORK_ID="$NETWORK_ID",_NETWORK_PROJECT_NUMBER="$NETWORK_PROJECT_NUMBER",_AF2_VERSION="$AF2_VERSION",_OF3_VERSION="$OF3_VERSION",_BOLTZ_VERSION="$BOLTZ_VERSION",_BUILD_TARGET="$BUILD_TARGET" \
+        --substitutions=_REGION="$REGION",_BUCKET_NAME="$GCS_BUCKET",_FILESTORE_ID="$FILESTORE_ID",_AR_REPO="$AR_REPO",_AGENT_SA_EMAIL="$AGENT_SA_EMAIL",_PIPELINES_SA_EMAIL="$PIPELINES_SA_EMAIL",_DATABASES_BUCKET="$DATABASES_BUCKET",_NETWORK_ID="$NETWORK_ID",_NETWORK_PROJECT_NUMBER="$NETWORK_PROJECT_NUMBER",_AF2_VERSION="$AF2_VERSION",_OF3_VERSION="$OF3_VERSION",_BOLTZ_VERSION="$BOLTZ_VERSION",_BUILD_TARGET="$BUILD_TARGET",_MODEL_ENDPOINT_LOCATION="$MODEL_ENDPOINT_LOCATION" \
         --machine-type=e2-highcpu-8 \
         --service-account="projects/${PROJECT_ID}/serviceAccounts/${BUILD_SA_EMAIL}"
 fi

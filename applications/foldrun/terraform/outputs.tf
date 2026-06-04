@@ -77,5 +77,9 @@ output "network_project_number" {
   value       = local.network_project_number
 }
 
+output "model_endpoint_location" {
+  description = "The model endpoint location"
+  value       = var.model_endpoint_location
+}
 
 

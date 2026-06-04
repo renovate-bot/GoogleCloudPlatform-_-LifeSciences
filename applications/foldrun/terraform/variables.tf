@@ -23,6 +23,12 @@ variable "region" {
   default     = "us-central1"
 }
 
+variable "model_endpoint_location" {
+  description = "The GCP location for the model endpoint"
+  type        = string
+  default     = "global"
+}
+
 variable "zone" {
   description = "The GCP zone"
   type        = string
