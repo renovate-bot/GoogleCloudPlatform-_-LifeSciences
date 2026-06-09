@@ -190,7 +190,7 @@ Skill count depends on which models are configured:
 | Variable | Description |
 |----------|-------------|
 | `ANALYSIS_JOB_NAME` | Cloud Run Job name (default: `foldrun-analysis-job`) |
-| `AF2_VIEWER_URL` | FoldRun viewer Cloud Run URL (shared by all models) |
+| `FOLDRUN_VIEWER_URL` | FoldRun viewer Cloud Run URL (shared by all models) |
 | `GEMINI_ANALYSIS_MODEL` | Gemini model for expert analysis (default: `gemini-3.1-pro-preview`) |
 | `PIPELINES_SA_EMAIL` | Service account email for Agent Platform Pipeline submissions |
 

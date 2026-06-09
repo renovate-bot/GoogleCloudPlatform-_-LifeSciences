@@ -28,7 +28,7 @@ def mock_env():
         "GCS_BUCKET_NAME": "test-bucket",
         "FILESTORE_ID": "test-nfs",
         "ALPHAFOLD_COMPONENTS_IMAGE": "test-af2-image:latest",
-        "AF2_VIEWER_URL": "https://viewer.example.com",
+        "FOLDRUN_VIEWER_URL": "https://viewer.example.com",
         "AF2_PARALLELISM": "5",
     }
     with patch.dict(os.environ, env, clear=False):
@@ -60,7 +60,7 @@ class TestAF2Config:
         assert config.viewer_url == "https://viewer.example.com"
 
     def test_config_viewer_url_defaults_to_empty(self, monkeypatch):
-        monkeypatch.delenv("AF2_VIEWER_URL", raising=False)
+        monkeypatch.delenv("FOLDRUN_VIEWER_URL", raising=False)
         from foldrun_app.models.af2.config import Config
 
         config = Config()

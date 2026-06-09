@@ -111,7 +111,7 @@ async def create_pretty_agent():
     project_id = os.getenv("GCP_PROJECT_ID", "Not configured")
     region = os.getenv("GCP_REGION", "Not configured")
     gcs_bucket = os.getenv("GCS_BUCKET_NAME", "Not configured")
-    viewer_base_url = os.getenv("AF2_VIEWER_URL", "Not configured")
+    viewer_base_url = os.getenv("FOLDRUN_VIEWER_URL", "Not configured")
     gemini_model = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
 
     config_info = f"""[bold cyan]FoldRun Agent Configuration[/bold cyan]

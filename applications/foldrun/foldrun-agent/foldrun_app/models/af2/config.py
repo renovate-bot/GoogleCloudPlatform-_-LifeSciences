@@ -48,7 +48,7 @@ class Config(CoreConfig):
     @property
     def viewer_url(self) -> str:
         """Cloud Run viewer service URL."""
-        return os.getenv("AF2_VIEWER_URL", "")
+        return os.getenv("FOLDRUN_VIEWER_URL", "")
 
     @property
     def parallelism(self) -> int:

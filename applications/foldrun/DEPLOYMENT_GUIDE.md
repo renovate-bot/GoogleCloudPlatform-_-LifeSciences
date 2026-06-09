@@ -259,6 +259,13 @@ Access requires authentication through your organization's IAP configuration.
 The `iap_access_domain` Terraform variable controls which domain's users can
 access the viewer.
 
+> [!NOTE]
+> If you are using a custom domain in front of the Viewer service (instead of the default Cloud Run `run.app` URL), you can override the URL provided to the agent by setting the `FOLDRUN_VIEWER_URL` environment variable before running the deployment:
+> ```bash
+> export FOLDRUN_VIEWER_URL="https://your-custom-domain.com"
+> ./deploy-all.sh
+> ```
+
 ## 5b. A2A Protocol Proxy (Optional)
 
 The A2A (Agent-to-Agent) proxy exposes the FoldRun agent via the [A2A protocol](https://google.github.io/a2a/),

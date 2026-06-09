@@ -65,17 +65,8 @@ steps:
             --image ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/foldrun-viewer:latest \
             --region ${_REGION} \
             --set-env-vars PROJECT_ID=$PROJECT_ID,BUCKET_NAME=${_BUCKET_NAME},REGION=${_REGION}
-
-          gcloud run services describe foldrun-viewer \
-            --region ${_REGION} \
-            --format 'value(status.url)' > /workspace/viewer_url.txt
-          echo "Viewer URL: $$(cat /workspace/viewer_url.txt)"
         else
           echo "Skipping viewer deploy (BUILD_TARGET=${_BUILD_TARGET})"
-          # Fetch existing URL so deploy-agent-engine can use it
-          gcloud run services describe foldrun-viewer \
-            --region ${_REGION} \
-            --format 'value(status.url)' > /workspace/viewer_url.txt 2>/dev/null || echo "" > /workspace/viewer_url.txt
         fi
     waitFor: ['build-push-viewer']
 
@@ -228,10 +219,7 @@ steps:
         export OPENFOLD3_COMPONENTS_IMAGE=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/openfold3-components:latest
         export BOLTZ2_COMPONENTS_IMAGE=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/boltz2-components:latest
 
-        VIEWER_URL=$$(cat /workspace/viewer_url.txt)
-        export AF2_VIEWER_URL=$$VIEWER_URL
-
-        ENV_VARS="GOOGLE_CLOUD_LOCATION=${_MODEL_ENDPOINT_LOCATION},GCP_REGION=${_REGION},GCS_BUCKET_NAME=${_BUCKET_NAME},GCS_DATABASES_BUCKET=${_DATABASES_BUCKET},FILESTORE_ID=${_FILESTORE_ID},ALPHAFOLD_COMPONENTS_IMAGE=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/alphafold-components:latest,OPENFOLD3_COMPONENTS_IMAGE=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/openfold3-components:latest,BOLTZ2_COMPONENTS_IMAGE=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/boltz2-components:latest,AF2_VIEWER_URL=$$VIEWER_URL,ANALYSIS_JOB_NAME=foldrun-analysis-job,PIPELINES_SA_EMAIL=${_PIPELINES_SA_EMAIL}"
+        ENV_VARS="GOOGLE_CLOUD_LOCATION=${_MODEL_ENDPOINT_LOCATION},GCP_REGION=${_REGION},GCS_BUCKET_NAME=${_BUCKET_NAME},GCS_DATABASES_BUCKET=${_DATABASES_BUCKET},FILESTORE_ID=${_FILESTORE_ID},ALPHAFOLD_COMPONENTS_IMAGE=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/alphafold-components:latest,OPENFOLD3_COMPONENTS_IMAGE=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/openfold3-components:latest,BOLTZ2_COMPONENTS_IMAGE=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/boltz2-components:latest,FOLDRUN_VIEWER_URL=${_FOLDRUN_VIEWER_URL},ANALYSIS_JOB_NAME=foldrun-analysis-job,PIPELINES_SA_EMAIL=${_PIPELINES_SA_EMAIL}"
         [[ -n "${_NETWORK_ID}" ]] && ENV_VARS="$$ENV_VARS,NETWORK=${_NETWORK_ID}"
         [[ -n "${_NETWORK_PROJECT_NUMBER}" ]] && ENV_VARS="$$ENV_VARS,NETWORK_PROJECT_NUMBER=${_NETWORK_PROJECT_NUMBER}"
 
@@ -240,7 +228,7 @@ steps:
           --location=${_REGION} \
           --service-account=${_AGENT_SA_EMAIL} \
           --set-env-vars=$$ENV_VARS
-    waitFor: ['deploy-viewer', 'build-push-af2-components', 'build-push-of3-components', 'build-push-boltz2-components']
+    waitFor: ['build-push-af2-components', 'build-push-of3-components', 'build-push-boltz2-components']
 
   # ============================================================================
   # 4b. FoldRun A2A Proxy (Cloud Run Service — optional)
@@ -334,6 +322,7 @@ substitutions:
   _BOLTZ_VERSION: "2.2.1"
   _BUILD_TARGET: "all"
   _MODEL_ENDPOINT_LOCATION: "global"
+  _FOLDRUN_VIEWER_URL: ""
 timeout: 3600s
 options:
   logging: CLOUD_LOGGING_ONLY

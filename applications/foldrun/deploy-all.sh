@@ -53,6 +53,7 @@ usage() {
     echo "Environment variables:"
     echo "  DOWNLOAD_MODE      Database download mode: reduced (default) or full"
     echo "  AF2_VERSION        AlphaFold2 git commit to build (default: pinned commit)"
+    echo "  FOLDRUN_VIEWER_URL Custom Viewer URL (defaults to Terraform output if available)"
     echo "  OF3_VERSION        OpenFold3 Docker image tag to use (default: 0.4.0)"
     echo "  BOLTZ_VERSION      Boltz-2 pip package version to install (default: 2.2.1)"
     echo ""
@@ -235,6 +236,7 @@ extract_terraform_outputs() {
     export SUBNET_ID="${SUBNET_ID:-}"
     export NETWORK_ID="${NETWORK_ID:-}"
     export NETWORK_PROJECT_NUMBER="${NETWORK_PROJECT_NUMBER:-}"
+    export TF_VIEWER_URL="${TF_VIEWER_URL:-}"
 
     # If terraform is available, cross-check naming-convention defaults against
     # actual state outputs (important for Shared VPC and custom resource names).
@@ -262,12 +264,15 @@ extract_terraform_outputs() {
             v=$(_tf network_id);             if [[ -n "$v" ]]; then echo "NETWORK_ID=$v"; fi
             v=$(_tf network_project_number); if [[ -n "$v" ]]; then echo "NETWORK_PROJECT_NUMBER=$v"; fi
             v=$(_tf model_endpoint_location); if [[ -n "$v" ]]; then echo "MODEL_ENDPOINT_LOCATION=$v"; fi
+            v=$(_tf foldrun_viewer_url);     if [[ -n "$v" ]]; then echo "TF_VIEWER_URL=$v"; fi
         ) > "$_tf_env" 2>/dev/null || true
         while IFS='=' read -r key val; do
             [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && export "$key"="$val"
         done < "$_tf_env"
         rm -f "$_tf_env"
     fi
+
+    export FOLDRUN_VIEWER_URL="${FOLDRUN_VIEWER_URL:-$TF_VIEWER_URL}"
 
     echo "Configuration:"
     echo "  GCS_BUCKET=$GCS_BUCKET"
@@ -281,6 +286,7 @@ extract_terraform_outputs() {
     echo "  NETWORK_ID=$NETWORK_ID"
     echo "  NETWORK_PROJECT_NUMBER=$NETWORK_PROJECT_NUMBER"
     echo "  MODEL_ENDPOINT_LOCATION=$MODEL_ENDPOINT_LOCATION"
+    echo "  FOLDRUN_VIEWER_URL=$FOLDRUN_VIEWER_URL"
 }
 
 # ==============================================================================
@@ -349,7 +355,7 @@ if $run_build; then
     gcloud builds submit . \
         --config cloudbuild.yaml \
         --project "$PROJECT_ID" \
-        --substitutions=_REGION="$REGION",_BUCKET_NAME="$GCS_BUCKET",_FILESTORE_ID="$FILESTORE_ID",_AR_REPO="$AR_REPO",_AGENT_SA_EMAIL="$AGENT_SA_EMAIL",_PIPELINES_SA_EMAIL="$PIPELINES_SA_EMAIL",_DATABASES_BUCKET="$DATABASES_BUCKET",_NETWORK_ID="$NETWORK_ID",_NETWORK_PROJECT_NUMBER="$NETWORK_PROJECT_NUMBER",_AF2_VERSION="$AF2_VERSION",_OF3_VERSION="$OF3_VERSION",_BOLTZ_VERSION="$BOLTZ_VERSION",_BUILD_TARGET="$BUILD_TARGET",_MODEL_ENDPOINT_LOCATION="$MODEL_ENDPOINT_LOCATION" \
+        --substitutions=_REGION="$REGION",_BUCKET_NAME="$GCS_BUCKET",_FILESTORE_ID="$FILESTORE_ID",_AR_REPO="$AR_REPO",_AGENT_SA_EMAIL="$AGENT_SA_EMAIL",_PIPELINES_SA_EMAIL="$PIPELINES_SA_EMAIL",_DATABASES_BUCKET="$DATABASES_BUCKET",_NETWORK_ID="$NETWORK_ID",_NETWORK_PROJECT_NUMBER="$NETWORK_PROJECT_NUMBER",_AF2_VERSION="$AF2_VERSION",_OF3_VERSION="$OF3_VERSION",_BOLTZ_VERSION="$BOLTZ_VERSION",_BUILD_TARGET="$BUILD_TARGET",_MODEL_ENDPOINT_LOCATION="$MODEL_ENDPOINT_LOCATION",_FOLDRUN_VIEWER_URL="$FOLDRUN_VIEWER_URL" \
         --machine-type=e2-highcpu-8 \
         --service-account="projects/${PROJECT_ID}/serviceAccounts/${BUILD_SA_EMAIL}"
 fi

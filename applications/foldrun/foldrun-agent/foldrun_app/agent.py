@@ -915,11 +915,7 @@ def create_alphafold_agent(model: str = None) -> Agent:
     gcs_bucket = os.getenv("VERTEX_STAGING_BUCKET") or os.getenv(
         "GCS_BUCKET_NAME", "Not configured"
     )
-    viewer_base_url = (
-        os.getenv("AF2_VIEWER_URL")
-        or os.getenv("FOLDRUN_VIEWER_URL")
-        or os.getenv("ANALYSIS_VIEWER_BASE_URL", "Not configured")
-    )
+    viewer_base_url = os.getenv("FOLDRUN_VIEWER_URL") or "Not configured"
 
     # Build configuration context for the agent
     config_context = f"""
