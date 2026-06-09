@@ -34,6 +34,7 @@ from .shared_utils import (
     calculate_plddt_stats,
     download_from_gcs,
     download_json_from_gcs,
+    get_job_metadata,
     get_quality_assessment,
     upload_to_gcs,
     plot_plddt_distribution,
@@ -265,67 +266,7 @@ def consolidate_results(
         logger.error("No analyses found to consolidate")
         return
 
-    all_labels = {}
-    job_metadata = {"labels": {}, "parameters": {}}
-    try:
-        from google.cloud import aiplatform_v1 as vertex_ai
-
-        project_id = os.environ["PROJECT_ID"]
-        region = os.getenv("REGION", "us-central1")
-
-        client = vertex_ai.PipelineServiceClient(
-            client_options={"api_endpoint": f"{region}-aiplatform.googleapis.com"}
-        )
-
-        full_job_id = (
-            job_id
-            if job_id.startswith("projects/")
-            else f"projects/{project_id}/locations/{region}/pipelineJobs/{job_id}"
-        )
-
-        request = vertex_ai.GetPipelineJobRequest(name=full_job_id)
-        job = client.get_pipeline_job(request=request)
-
-        all_labels = dict(job.labels) if hasattr(job, "labels") and job.labels else {}
-        pipeline_parameters = {}
-        if hasattr(job, "runtime_config") and hasattr(
-            job.runtime_config, "parameter_values"
-        ):
-            pipeline_parameters = dict(job.runtime_config.parameter_values)
-
-        job_metadata = {
-            "display_name": job.display_name if hasattr(job, "display_name") else None,
-            "state": job.state.name if hasattr(job, "state") else None,
-            "labels": all_labels,
-            "parameters": pipeline_parameters,
-        }
-
-        if hasattr(job, "create_time") and job.create_time:
-            job_metadata["created"] = job.create_time.isoformat()
-        if hasattr(job, "start_time") and job.start_time:
-            job_metadata["started"] = job.start_time.isoformat()
-        if hasattr(job, "end_time") and job.end_time:
-            job_metadata["completed"] = job.end_time.isoformat()
-
-        if (
-            hasattr(job, "start_time")
-            and hasattr(job, "end_time")
-            and job.start_time
-            and job.end_time
-        ):
-            duration = job.end_time - job.start_time
-            total_seconds = duration.total_seconds()
-            job_metadata["duration_seconds"] = total_seconds
-            hours = int(total_seconds // 3600)
-            minutes = int((total_seconds % 3600) // 60)
-            job_metadata["duration_formatted"] = (
-                f"{hours}h {minutes}m" if hours > 0 else f"{minutes:.1f}m"
-            )
-
-    except Exception as e:
-        logger.error(f"Could not get job metadata: {e}", exc_info=True)
-        all_labels = {}
-        job_metadata = {"labels": {}, "parameters": {}}
+    job_metadata = get_job_metadata(job_id)
 
     # Sort analyses by pLDDT
     all_analyses.sort(
@@ -348,11 +289,8 @@ def consolidate_results(
     fasta_header = None
 
     try:
-        if hasattr(job, "runtime_config") and hasattr(
-            job.runtime_config, "parameter_values"
-        ):
-            sequence_path = job.runtime_config.parameter_values.get("sequence_path")
-            if sequence_path and isinstance(sequence_path, str):
+        sequence_path = job_metadata.get("parameters", {}).get("sequence_path")
+        if sequence_path and isinstance(sequence_path, str):
                 bucket_obj = storage_client.bucket(bucket_name)
                 blob_path = sequence_path.replace(f"gs://{bucket_name}/", "")
                 blob = bucket_obj.blob(blob_path)

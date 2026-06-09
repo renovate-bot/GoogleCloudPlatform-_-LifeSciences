@@ -527,3 +527,94 @@ def calculate_per_chain_plddt(plddt_scores: list, chain_info: list[dict]) -> dic
         offset += n
 
     return result
+
+
+def get_job_metadata(job_id: str) -> dict:
+    """Retrieve PipelineJob metadata from Vertex AI.
+
+    Args:
+        job_id: The pipeline job ID.
+
+    Returns:
+        A dictionary containing job metadata (labels, parameters, display name, state,
+        created/started/completed times, and duration).
+    """
+    job_metadata = {"labels": {}, "parameters": {}}
+    try:
+        from google.cloud import aiplatform_v1 as vertex_ai
+        import os
+        from datetime import datetime
+
+        project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
+        if not project_id:
+            logger.warning("GOOGLE_CLOUD_PROJECT environment variable not set, cannot retrieve job metadata")
+            return job_metadata
+
+        # Parse region from job_id if it's a full resource name
+        region = os.environ.get("PIPELINE_JOB_LOCATION")
+        if not region:
+            logger.warning("PIPELINE_JOB_LOCATION environment variable not set, cannot retrieve job metadata")
+            return job_metadata
+
+        client = vertex_ai.PipelineServiceClient(
+            client_options={"api_endpoint": f"{region}-aiplatform.googleapis.com"}
+        )
+
+        full_job_id = (
+            job_id
+            if job_id.startswith("projects/")
+            else f"projects/{project_id}/locations/{region}/pipelineJobs/{job_id}"
+        )
+
+        request = vertex_ai.GetPipelineJobRequest(name=full_job_id)
+        job = client.get_pipeline_job(request=request)
+
+        all_labels = dict(job.labels) if hasattr(job, "labels") and job.labels else {}
+        pipeline_parameters = {}
+        if hasattr(job, "runtime_config") and hasattr(
+            job.runtime_config, "parameter_values"
+        ):
+            for k, v in job.runtime_config.parameter_values.items():
+                if hasattr(v, "string_value") and v.string_value:
+                    pipeline_parameters[k] = v.string_value
+                elif hasattr(v, "number_value") and v.number_value:
+                    pipeline_parameters[k] = v.number_value
+                elif hasattr(v, "bool_value"):
+                    pipeline_parameters[k] = v.bool_value
+                else:
+                    pipeline_parameters[k] = str(v)
+
+        job_metadata = {
+            "display_name": job.display_name if hasattr(job, "display_name") else None,
+            "state": job.state.name if hasattr(job, "state") else None,
+            "labels": all_labels,
+            "parameters": pipeline_parameters,
+        }
+
+        if hasattr(job, "create_time") and job.create_time:
+            job_metadata["created"] = job.create_time.isoformat()
+        if hasattr(job, "start_time") and job.start_time:
+            job_metadata["started"] = job.start_time.isoformat()
+        if hasattr(job, "end_time") and job.end_time:
+            job_metadata["completed"] = job.end_time.isoformat()
+
+        if (
+            hasattr(job, "start_time")
+            and hasattr(job, "end_time")
+            and job.start_time
+            and job.end_time
+        ):
+            duration = job.end_time - job.start_time
+            total_seconds = duration.total_seconds()
+            job_metadata["duration_seconds"] = total_seconds
+            hours = int(total_seconds // 3600)
+            minutes = int((total_seconds % 3600) // 60)
+            job_metadata["duration_formatted"] = (
+                f"{hours}h {minutes}m" if hours > 0 else f"{minutes:.1f}m"
+            )
+
+    except Exception as e:
+        logger.error(f"Could not get job metadata: {e}", exc_info=True)
+
+    return job_metadata
+

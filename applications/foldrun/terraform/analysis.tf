@@ -75,6 +75,10 @@ resource "google_cloud_run_v2_job" "foldrun_analysis_job" {
           name  = "GOOGLE_GENAI_USE_ENTERPRISE"
           value = "1"
         }
+        env {
+          name  = "PIPELINE_JOB_LOCATION"
+          value = var.region
+        }
 
         resources {
           limits = {
