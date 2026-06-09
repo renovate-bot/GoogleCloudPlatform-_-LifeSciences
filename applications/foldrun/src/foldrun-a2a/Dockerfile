@@ -18,29 +18,28 @@
 # Stage 1: Build environment
 FROM python:3.13-slim AS builder
 
+COPY --from=ghcr.io/astral-sh/uv:0.8.15 /uv /uvx /bin/
+
 WORKDIR /app
 
-# Copy requirements and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+COPY pyproject.toml uv.lock ./
+
+RUN uv sync --frozen --no-install-project --no-dev --no-editable
 
 # Stage 2: Runtime image
 FROM python:3.13-slim
 
 WORKDIR /app
 
-# Copy installed dependencies from builder
-COPY --from=builder /install /usr/local
+COPY --from=builder /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
 
-# Copy application files
 COPY main.py .
 COPY a2a_agent_card.py .
 
-# Create non-root user for security
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Set environment variables
 ENV PORT=8080
 ENV PYTHONUNBUFFERED=1
 ENV GOOGLE_GENAI_USE_ENTERPRISE=1

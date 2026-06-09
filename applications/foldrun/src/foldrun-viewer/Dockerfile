@@ -17,21 +17,25 @@
 # Stage 1: Build environment
 FROM python:3.13-slim AS builder
 
-# Set working directory
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:0.8.15 /uv /uvx /bin/
+
 WORKDIR /app
 
-# Copy requirements and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+# Copy config files and lock
+COPY pyproject.toml uv.lock ./
+
+# Install dependencies (frozen, no-dev, no-install-project)
+RUN uv sync --frozen --no-install-project --no-dev --no-editable
 
 # Stage 2: Runtime image
 FROM python:3.13-slim
 
-# Set working directory
 WORKDIR /app
 
-# Copy installed dependencies from builder
-COPY --from=builder /install /usr/local
+# Copy virtual environment from builder
+COPY --from=builder /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy application files
 COPY app.py .
@@ -42,12 +46,9 @@ COPY static/ static/
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app && chmod o+w /app
 USER appuser
 
-# Set environment variables
 ENV PORT=8080
 ENV PYTHONUNBUFFERED=1
 
-# Expose port
 EXPOSE 8080
 
-# Run with gunicorn for production
 CMD exec gunicorn --bind :$PORT --workers 2 --threads 4 --timeout 0 app:app

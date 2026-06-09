@@ -17,37 +17,33 @@
 # Stage 1: Build environment
 FROM python:3.13-slim AS builder
 
-# Set working directory
+COPY --from=ghcr.io/astral-sh/uv:0.8.15 /uv /uvx /bin/
+
 WORKDIR /app
 
-# Install build dependencies
+# Install build dependencies (apt)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy build specifications and source package
-COPY pyproject.toml .
-COPY README.md .
+# Copy config and source
+COPY pyproject.toml uv.lock README.md ./
 COPY foldrun_analysis/ ./foldrun_analysis/
 
-# Build and install the package
-RUN pip install --no-cache-dir --prefix=/install .
+# Install the package and its dependencies
+RUN uv sync --frozen --no-dev --no-editable
 
 # Stage 2: Runtime image
 FROM python:3.13-slim
 
-# Set working directory
 WORKDIR /app
 
-# Copy installed package and dependencies from builder
-COPY --from=builder /install /usr/local
+COPY --from=builder /app/.venv /app/.venv
+ENV PATH="/app/.venv/bin:$PATH"
 
-# Create non-root user for security
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Set environment variables
 ENV PYTHONUNBUFFERED=1
 
-# Entry point runs the installed console script
 ENTRYPOINT ["foldrun-analysis"]

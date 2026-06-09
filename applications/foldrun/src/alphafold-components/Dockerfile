@@ -75,13 +75,10 @@ RUN git -C /app/alphafold reset --hard $AF2_VERSION
 RUN wget -q -P /app/alphafold/alphafold/common/ \
   https://git.scicore.unibas.ch/schwede/openstructure/-/raw/7102c63615b64735c4941278d92b554ec94415f8/modules/mol/alg/src/stereo_chemical_props.txt
 
-# Install pip packages (h5py already satisfied via conda).
-RUN pip3 install --upgrade pip --no-cache-dir \
-    && pip3 install -r /app/alphafold/requirements.txt --no-cache-dir \
-    && pip3 install --upgrade --no-cache-dir \
-      jax==0.4.26 \
-      jaxlib==0.4.26+cuda12.cudnn89 \
-      -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+COPY requirements.txt /app/alphafold/requirements_resolved.txt
+RUN pip3 install --no-cache-dir --require-hashes \
+    -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html \
+    -r /app/alphafold/requirements_resolved.txt
 
 # Patch: skip unparseable template descriptions instead of crashing.
 # Some PDB entries (e.g. 5apu) have formats AF2's parser can't handle.

@@ -37,8 +37,5 @@ dist/
 *.egg
 *.whl
 
-# Lock files
-uv.lock
-
 # Git
 .git/
