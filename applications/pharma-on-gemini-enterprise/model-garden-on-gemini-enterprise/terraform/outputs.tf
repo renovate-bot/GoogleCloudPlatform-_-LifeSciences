@@ -12,21 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+output "reasoning_engine_id" {
+  value       = module.model_garden_agent.engine_id
+  description = "The full resource name of the deployed Reasoning Engine"
+}
 
-[project]
-name = "model-garden-agent"
-version = "0.1.0"
-description = "ADK agent using models from Model Garden"
-readme = "README.md"
-requires-python = ">=3.13"
-dependencies = [
-    "google-cloud-aiplatform[agent_engines,adk]",
-    "anthropic[vertex]",
-    "opentelemetry-instrumentation-google-genai",
-]
-
-[tool.hatch.build.targets.wheel]
-packages = ["model_garden_agent"]
+output "agent_identity" {
+  value       = module.model_garden_agent.agent_identity
+  description = "The effective identity principal used at runtime (Agent Identity principal or standard service account email)"
+}

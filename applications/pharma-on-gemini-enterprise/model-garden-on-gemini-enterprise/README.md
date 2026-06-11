@@ -111,6 +111,16 @@ model-garden-on-gemini-enterprise/
 ├── README.md          # setup & deployment guide
 ├── .env               # environment variables (project, location, etc.)
 ├── docs/              # documentation images
+├── terraform/         # Terraform deployment configuration
+│   ├── main.tf
+│   ├── variables.tf
+│   ├── outputs.tf
+│   ├── README.md
+│   └── modules/
+│       └── model_garden_agent/
+│           ├── main.tf
+│           ├── variables.tf
+│           └── outputs.tf
 └── model_garden_agent/
     ├── __init__.py    # registers the agent
     └── agent.py       # agent logic & callbacks
@@ -145,6 +155,24 @@ On success:
 ```
 ✅ Created agent engine: projects/123456789/locations/us-central1/reasoningEngines/RESOURCE_ID
 ```
+
+## Deploy with Terraform (Alternative)
+
+For production, CI/CD pipelines, or when custom dependencies require custom container runtimes, you can deploy the agent using **Terraform** and a **Dockerfile**. This packages your agent logic, `Dockerfile` environments, OpenTelemetry endpoints, and IAM permissions in a single declarative deployment.
+
+See the dedicated [Terraform Deployment README](terraform/README.md) for detailed instructions on variables, configuring standard service account fallbacks, and executing the flow.
+
+### Quick Start
+Ensure your project credentials are authenticated (`gcloud auth application-default login`), then run:
+```bash
+cd terraform
+terraform init
+terraform validate
+terraform apply -var="project_id=YOUR_PROJECT_ID"
+```
+
+On success, copy the returned `reasoning_engine_id` outputs to query or register your agent.
+
 
 ### Verify in the Console
 
