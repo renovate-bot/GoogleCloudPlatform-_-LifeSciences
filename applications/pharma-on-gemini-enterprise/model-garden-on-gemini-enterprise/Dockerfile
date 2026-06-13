@@ -13,9 +13,9 @@
 # limitations under the License.
 
 # Stage 1: Build stage
-FROM python:3.13-slim AS builder
+FROM python:3.14-slim AS builder
 
-COPY --from=ghcr.io/astral-sh/uv:0.11.16 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.11.21 /uv /uvx /bin/
 
 ENV UV_COMPILE_BYTECODE=1
 
@@ -33,7 +33,7 @@ COPY . .
 RUN uv sync --no-dev --no-editable
 
 # Stage 2: Runtime stage
-FROM python:3.13-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 # Create a non-root user for security
 RUN useradd --create-home appuser
