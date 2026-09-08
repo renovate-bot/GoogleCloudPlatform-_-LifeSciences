@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""AlphaFold2 ADK Agent application."""
+"""Modular instructions for database queries skill."""
 
-from foldrun_app.agent import app, create_alphafold_agent, create_foldrun_agent
-
-__all__ = ["app", "create_alphafold_agent", "create_foldrun_agent"]
+DATABASE_QUERIES_INSTRUCTION = """### Database Queries
+- **Check existing structures**: Use query_alphafold_db_summary before running expensive predictions
+- **Get detailed predictions**: Use query_alphafold_db_prediction for full structure data
+- **Variant annotations**: Use query_alphafold_db_annotations for mutation effects
+"""

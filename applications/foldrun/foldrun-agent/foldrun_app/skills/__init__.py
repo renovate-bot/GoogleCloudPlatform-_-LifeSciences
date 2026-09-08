@@ -12,4 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""AF2 ADK skill wrappers."""
+"""FoldRun modular skills architecture."""
+
+from foldrun_app.skills.base import Skill
+from foldrun_app.skills.registry import SkillRegistry, skill_registry
+
+__all__ = ["Skill", "SkillRegistry", "skill_registry"]
