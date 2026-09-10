@@ -19,6 +19,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FoldRun Structure Viewer</title>
+    <script src="/static/js/third_party/purify.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -414,6 +415,17 @@
         let nextPageToken = '';
         let refreshTimer = null;
 
+        // Escape HTML special characters for safe insertion into HTML strings
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         const QUALITY_META = {
             very_high_confidence: { label: 'Very High', cls: 'quality-very-high' },
             high_confidence:      { label: 'High',      cls: 'quality-high'      },
@@ -473,10 +485,20 @@
                 return;
             }
 
-            container.innerHTML = filtered.map(j => {
-                const sm    = STATE_META[j.state] || { label: j.state.replace('PIPELINE_STATE_',''), cls: 'state-pending' };
-                const badge = `badge-${j.model_type}`;
-                const label = MODEL_LABELS[j.model_type] || j.model_type;
+            const jobsHtml = filtered.map(j => {
+                const rawState = String(j.state || '');
+                const sm = STATE_META[rawState] || { label: rawState.replace('PIPELINE_STATE_',''), cls: 'state-pending' };
+                const rawModelType = String(j.model_type || '');
+                const badge = `badge-${rawModelType}`;
+                const label = MODEL_LABELS[rawModelType] || rawModelType;
+                const safeJobId = escapeHtml(j.job_id);
+                const safeModelType = escapeHtml(rawModelType);
+                const safeBadge = escapeHtml(badge);
+                const safeLabel = escapeHtml(label);
+                const safeCls = escapeHtml(sm.cls);
+                const safeSmLabel = escapeHtml(sm.label);
+                const safeDisplayName = escapeHtml(j.display_name || j.job_id);
+                const safeTime = escapeHtml(relativeTime(j.create_time));
 
                 let actionBtn;
                 if (canView(j)) {
@@ -486,30 +508,44 @@
                                  <button class="analyze-btn" disabled title="Analysis already running">Analyzing…</button>`;
                 } else if (canAnalyze(j)) {
                     actionBtn = `<a class="view-btn disabled" href="#" title="Run analysis first">View</a>
-                                 <button class="analyze-btn" onclick="analyzeJob('${j.job_id}','${j.model_type}',this)">Analyze</button>`;
+                                 <button class="analyze-btn" data-job-id="${safeJobId}" data-model-type="${safeModelType}">Analyze</button>`;
                 } else {
                     actionBtn = `<a class="view-btn disabled" href="#">View</a>`;
                 }
 
                 const showQuality = j.has_analysis && j.state === 'PIPELINE_STATE_SUCCEEDED';
                 const qualityEl = showQuality
-                    ? `<span class="quality-loading" id="quality-${j.job_id}">…</span>`
+                    ? `<span class="quality-loading" id="quality-${safeJobId}">…</span>`
                     : `<span></span>`;
 
-                return `<div class="job-row" id="row-${j.job_id}">
-                    <span class="model-badge ${badge}">${label}</span>
-                    <span class="state-chip ${sm.cls}">${sm.label}</span>
+                return `<div class="job-row" id="row-${safeJobId}">
+                    <span class="model-badge ${safeBadge}">${safeLabel}</span>
+                    <span class="state-chip ${safeCls}">${safeSmLabel}</span>
                     ${qualityEl}
-                    <span class="job-name" title="${j.job_id}">${j.display_name || j.job_id}</span>
-                    <span class="job-time">${relativeTime(j.create_time)}</span>
+                    <span class="job-name" title="${safeJobId}">${safeDisplayName}</span>
+                    <span class="job-time">${safeTime}</span>
                     <div class="job-actions">${actionBtn}</div>
                 </div>`;
             }).join('');
 
+            container.innerHTML = DOMPurify.sanitize(jobsHtml);
+
+            // Wire up analyze buttons safely
+            container.querySelectorAll('.analyze-btn[data-job-id]').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const jobId = this.getAttribute('data-job-id');
+                    const modelType = this.getAttribute('data-model-type');
+                    analyzeJob(jobId, modelType, this);
+                });
+            });
+
             // Load more button
             if (nextPageToken) {
-                container.insertAdjacentHTML('beforeend',
-                    `<button class="load-more-btn" onclick="loadMore()">Load more</button>`);
+                const moreBtn = document.createElement('button');
+                moreBtn.className = 'load-more-btn';
+                moreBtn.textContent = 'Load more';
+                moreBtn.addEventListener('click', loadMore);
+                container.appendChild(moreBtn);
             }
 
             // Lazy-load quality badges — succeeded jobs with analysis only
@@ -589,8 +625,12 @@
                 const data = await resp.json();
 
                 if (data.error && !data.jobs.length) {
-                    document.getElementById('jobs-container').innerHTML =
-                        `<div class="jobs-error">Could not load jobs: ${data.error}</div>`;
+                    const errDiv = document.createElement('div');
+                    errDiv.className = 'jobs-error';
+                    errDiv.textContent = `Could not load jobs: ${data.error}`;
+                    const container = document.getElementById('jobs-container');
+                    container.innerHTML = '';
+                    container.appendChild(errDiv);
                     return;
                 }
 

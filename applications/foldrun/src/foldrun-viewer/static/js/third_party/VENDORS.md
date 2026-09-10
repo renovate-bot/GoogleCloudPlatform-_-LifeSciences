@@ -7,6 +7,7 @@ The viewer runs in GCP VPCs where egress to external CDNs may be restricted.
 |---|---|---|---|
 | `3Dmol-min.js` | 3Dmol.js | latest at time of download | https://3Dmol.csb.pitt.edu/build/3Dmol-min.js |
 | `marked.min.js` | marked | 11.1.1 | https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js |
+| `purify.min.js` | DOMPurify | 3.2.6 | https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js |
 
 ## Updating
 

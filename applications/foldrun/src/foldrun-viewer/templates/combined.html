@@ -21,6 +21,7 @@
     <title>FoldRun Structure & Analysis - {{ model_name }}</title>
     <script src="/static/js/third_party/3Dmol-min.js"></script>
     <script src="/static/js/third_party/marked.min.js"></script>
+    <script src="/static/js/third_party/purify.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -573,6 +574,17 @@
         let isOF3 = false;
         let isBoltz2 = false;
 
+        // Escape HTML special characters for safe insertion into HTML strings
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         // Initialize 3Dmol viewer
         function initViewer() {
             const element = document.getElementById('viewer-3d');
@@ -584,9 +596,9 @@
         async function loadAnalysis() {
             try {
                 {% if summary_uri %}
-                const url = `/api/analysis?summary_uri=${encodeURIComponent('{{ summary_uri }}')}`;
+                const url = `/api/analysis?summary_uri=${encodeURIComponent({{ summary_uri | tojson }})}`;
                 {% elif job_id %}
-                const url = `/api/analysis?job_id=${encodeURIComponent('{{ job_id }}')}`;
+                const url = `/api/analysis?job_id=${encodeURIComponent({{ job_id | tojson }})}`;
                 {% else %}
                 throw new Error('No job_id or summary_uri provided');
                 {% endif %}
@@ -634,8 +646,17 @@
                 populateJobInfo();
             } catch (error) {
                 console.error('Error loading analysis:', error);
-                document.querySelector('#analysis-content').innerHTML =
-                    '<div class="info-card"><p style="color: #e74c3c;">Error loading analysis: ' + error.message + '</p></div>';
+                const errContainer = document.querySelector('#analysis-content');
+                if (errContainer) {
+                    errContainer.innerHTML = '';
+                    const card = document.createElement('div');
+                    card.className = 'info-card';
+                    const p = document.createElement('p');
+                    p.style.color = '#e74c3c';
+                    p.textContent = 'Error loading analysis: ' + error.message;
+                    card.appendChild(p);
+                    errContainer.appendChild(card);
+                }
             }
         }
 
@@ -655,30 +676,32 @@
             if (mt) {
                 const badge = mt === 'openfold3' ? 'OpenFold3' :
                               mt === 'boltz2'    ? 'Boltz-2'   : 'AlphaFold2';
-                html += `<div class="job-info-item"><span class="job-info-value">${badge}</span></div>`;
+                html += `<div class="job-info-item"><span class="job-info-value">${escapeHtml(badge)}</span></div>`;
             }
 
             // Status
             if (jobMetadata.state) {
-                const state = jobMetadata.state.replace('PIPELINE_STATE_', '');
+                const state = String(jobMetadata.state).replace('PIPELINE_STATE_', '');
                 const statusClass = state.toLowerCase().includes('succeed') ? 'succeeded' :
                                   state.toLowerCase().includes('running') ? 'running' : 'failed';
-                html += `<div class="job-info-item"><span class="job-status ${statusClass}">${state}</span></div>`;
+                html += `<div class="job-info-item"><span class="job-status ${statusClass}">${escapeHtml(state)}</span></div>`;
             }
 
             // Duration
             if (jobMetadata.duration_formatted) {
-                html += `<div class="job-info-item"><span class="job-info-label">Duration:</span> <span class="job-info-value">${jobMetadata.duration_formatted}</span></div>`;
+                html += `<div class="job-info-item"><span class="job-info-label">Duration:</span> <span class="job-info-value">${escapeHtml(jobMetadata.duration_formatted)}</span></div>`;
             }
 
             // Chain composition (compact)
             const chainComp = proteinInfo.chain_composition;
             if (chainComp && chainComp.length > 0) {
                 const parts = chainComp.map(c => {
+                    const chainId = escapeHtml(c.chain_id);
                     if (c.molecule_type === 'ligand') {
-                        return `${c.chain_id}: ${(c.comp_ids || []).join(',')}`;
+                        const comps = (c.comp_ids || []).map(escapeHtml).join(',');
+                        return `${chainId}: ${comps}`;
                     }
-                    return `${c.chain_id}: ${c.molecule_type} (${c.residue_count})`;
+                    return `${chainId}: ${escapeHtml(c.molecule_type)} (${escapeHtml(c.residue_count)})`;
                 });
                 html += `<div class="job-info-item"><span class="job-info-label">Chains:</span> <span class="job-info-value">${parts.join(' | ')}</span></div>`;
             }
@@ -695,14 +718,14 @@
 
                     html += `
                         <div class="job-info-item">
-                            <span class="job-info-label">${displayKey}:</span>
-                            <span class="job-info-value">${value}</span>
+                            <span class="job-info-label">${escapeHtml(displayKey)}:</span>
+                            <span class="job-info-value">${escapeHtml(value)}</span>
                         </div>
                     `;
                 });
             }
 
-            jobInfoDiv.innerHTML = html;
+            jobInfoDiv.innerHTML = DOMPurify.sanitize(html);
         }
 
         // Switch to a different prediction
@@ -758,8 +781,14 @@
                 document.querySelector('#viewer-3d .loading').style.display = 'none';
             } catch (error) {
                 console.error('Error loading structure:', error);
-                document.querySelector('#viewer-3d .loading').innerHTML =
-                    '<p style="color: #e74c3c;">Error loading structure: ' + error.message + '</p>';
+                const loadingEl = document.querySelector('#viewer-3d .loading');
+                if (loadingEl) {
+                    loadingEl.innerHTML = '';
+                    const p = document.createElement('p');
+                    p.style.color = '#e74c3c';
+                    p.textContent = 'Error loading structure: ' + error.message;
+                    loadingEl.appendChild(p);
+                }
                 throw error;
             }
         }
@@ -772,98 +801,119 @@
 
             // Prediction Summary
             if (isOF3) {
+                const sampleName = escapeHtml(prediction.sample_name || 'N/A');
+                const rankingScore = prediction.ranking_score !== undefined ? escapeHtml(prediction.ranking_score.toFixed(4)) : 'N/A';
+                const ptm = prediction.ptm !== undefined ? escapeHtml(prediction.ptm.toFixed(4)) : 'N/A';
+                const iptm = prediction.iptm !== undefined ? escapeHtml(prediction.iptm.toFixed(4)) : 'N/A';
+                const clash = prediction.has_clash ? 'Yes' : 'No';
+                const qualityAssessment = escapeHtml((prediction.quality_assessment || '').replace(/_/g, ' ').toUpperCase());
+                const modelLabel = isBoltz2 ? 'Boltz-2' : 'OpenFold3';
+                const rankNum = Number.isInteger(prediction.rank) ? prediction.rank : escapeHtml(prediction.rank);
+
                 html += `
                     <div class="info-card">
                         <h3>
                             Prediction Summary
-                            <span class="rank-badge rank-${prediction.rank}">#${prediction.rank}</span>
-                            <span style="font-size: 0.75em; color: #666; margin-left: 8px;">${isBoltz2 ? 'Boltz-2' : 'OpenFold3'}</span>
+                            <span class="rank-badge rank-${rankNum}">#${rankNum}</span>
+                            <span style="font-size: 0.75em; color: #666; margin-left: 8px;">${modelLabel}</span>
                         </h3>
                         <div class="info-row">
                             <span class="info-label">Sample</span>
-                            <span class="info-value">${prediction.sample_name || 'N/A'}</span>
+                            <span class="info-value">${sampleName}</span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">Ranking Score</span>
-                            <span class="info-value">${prediction.ranking_score !== undefined ? prediction.ranking_score.toFixed(4) : 'N/A'}</span>
+                            <span class="info-value">${rankingScore}</span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">pTM</span>
-                            <span class="info-value">${prediction.ptm !== undefined ? prediction.ptm.toFixed(4) : 'N/A'}</span>
+                            <span class="info-value">${ptm}</span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">ipTM</span>
-                            <span class="info-value">${prediction.iptm !== undefined ? prediction.iptm.toFixed(4) : 'N/A'}</span>
+                            <span class="info-value">${iptm}</span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">Clash</span>
-                            <span class="info-value">${prediction.has_clash ? 'Yes' : 'No'}</span>
+                            <span class="info-value">${clash}</span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">Quality Assessment</span>
-                            <span class="info-value">${prediction.quality_assessment.replace(/_/g, ' ').toUpperCase()}</span>
+                            <span class="info-value">${qualityAssessment}</span>
                         </div>
                     </div>
                 `;
             } else {
+                const modelName = escapeHtml(prediction.model_name || '');
+                const rankingConf = prediction.ranking_confidence !== undefined ? escapeHtml(prediction.ranking_confidence.toFixed(2)) : 'N/A';
+                const qualityAssessment = escapeHtml((prediction.quality_assessment || '').replace(/_/g, ' ').toUpperCase());
+                const rankNum = Number.isInteger(prediction.rank) ? prediction.rank : escapeHtml(prediction.rank);
+
                 html += `
                     <div class="info-card">
                         <h3>
                             Prediction Summary
-                            <span class="rank-badge rank-${prediction.rank}">#${prediction.rank}</span>
+                            <span class="rank-badge rank-${rankNum}">#${rankNum}</span>
                         </h3>
                         <div class="info-row">
                             <span class="info-label">Model</span>
-                            <span class="info-value">${prediction.model_name}</span>
+                            <span class="info-value">${modelName}</span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">Ranking Confidence</span>
-                            <span class="info-value">${prediction.ranking_confidence.toFixed(2)}</span>
+                            <span class="info-value">${rankingConf}</span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">Quality Assessment</span>
-                            <span class="info-value">${prediction.quality_assessment.replace(/_/g, ' ').toUpperCase()}</span>
+                            <span class="info-value">${qualityAssessment}</span>
                         </div>
                     </div>
                 `;
             }
 
             // Quality Metrics
+            const plddtMean = prediction.plddt_mean !== undefined ? escapeHtml(prediction.plddt_mean.toFixed(1)) : 'N/A';
             html += `
                 <div class="info-card">
                     <h3>Quality Metrics</h3>
                     <div class="quality-grid">
                         <div class="quality-item">
-                            <div class="value">${prediction.plddt_mean.toFixed(1)}</div>
+                            <div class="value">${plddtMean}</div>
                             <div class="label">Mean pLDDT</div>
                         </div>`;
 
             if (isOF3) {
+                const rankingScore = prediction.ranking_score !== undefined ? escapeHtml(prediction.ranking_score.toFixed(4)) : 'N/A';
+                const ptm = prediction.ptm !== undefined ? escapeHtml(prediction.ptm.toFixed(4)) : 'N/A';
+                const iptm = prediction.iptm !== undefined ? escapeHtml(prediction.iptm.toFixed(4)) : 'N/A';
                 html += `
                         <div class="quality-item">
-                            <div class="value">${prediction.ranking_score !== undefined ? prediction.ranking_score.toFixed(4) : 'N/A'}</div>
+                            <div class="value">${rankingScore}</div>
                             <div class="label">Ranking Score</div>
                         </div>
                         <div class="quality-item">
-                            <div class="value">${prediction.ptm !== undefined ? prediction.ptm.toFixed(4) : 'N/A'}</div>
+                            <div class="value">${ptm}</div>
                             <div class="label">pTM</div>
                         </div>
                         <div class="quality-item">
-                            <div class="value">${prediction.iptm !== undefined ? prediction.iptm.toFixed(4) : 'N/A'}</div>
+                            <div class="value">${iptm}</div>
                             <div class="label">ipTM</div>
                         </div>`;
             } else {
+                const plddtMedian = prediction.plddt_median !== undefined ? escapeHtml(prediction.plddt_median?.toFixed(1)) : 'N/A';
+                const plddtMin = prediction.plddt_min !== undefined ? escapeHtml(prediction.plddt_min?.toFixed(1)) : 'N/A';
+                const plddtMax = prediction.plddt_max !== undefined ? escapeHtml(prediction.plddt_max?.toFixed(1)) : 'N/A';
                 html += `
                         <div class="quality-item">
-                            <div class="value">${prediction.plddt_median?.toFixed(1) || 'N/A'}</div>
+                            <div class="value">${plddtMedian}</div>
                             <div class="label">Median pLDDT</div>
                         </div>
                         <div class="quality-item">
-                            <div class="value">${prediction.plddt_min?.toFixed(1) || 'N/A'}</div>
+                            <div class="value">${plddtMin}</div>
                             <div class="label">Min pLDDT</div>
                         </div>
                         <div class="quality-item">
-                            <div class="value">${prediction.plddt_max?.toFixed(1) || 'N/A'}</div>
+                            <div class="value">${plddtMax}</div>
                             <div class="label">Max pLDDT</div>
                         </div>`;
             }
@@ -878,19 +928,19 @@
                 html += `
                     <div class="confidence-bands">
                         <div class="confidence-band very-low">
-                            <div class="count">${dist.very_low_confidence || 0}</div>
+                            <div class="count">${escapeHtml(dist.very_low_confidence || 0)}</div>
                             <div class="range">&lt; 50</div>
                         </div>
                         <div class="confidence-band low">
-                            <div class="count">${dist.low_confidence || 0}</div>
+                            <div class="count">${escapeHtml(dist.low_confidence || 0)}</div>
                             <div class="range">50-70</div>
                         </div>
                         <div class="confidence-band confident">
-                            <div class="count">${dist.high_confidence || 0}</div>
+                            <div class="count">${escapeHtml(dist.high_confidence || 0)}</div>
                             <div class="range">70-90</div>
                         </div>
                         <div class="confidence-band very-high">
-                            <div class="count">${dist.very_high_confidence || 0}</div>
+                            <div class="count">${escapeHtml(dist.very_high_confidence || 0)}</div>
                             <div class="range">90-100</div>
                         </div>
                     </div>
@@ -908,13 +958,17 @@
                     const molType = stats.molecule_type || 'unknown';
                     const comps = (stats.comp_ids || []).slice(0, 3).join(', ');
                     const bgColor = molType === 'ligand' ? '#fff3cd' : (molType === 'protein' ? '#d4edda' : '#d1ecf1');
+                    const meanStr = stats.mean !== undefined ? stats.mean.toFixed(1) : 'N/A';
+                    const minStr = stats.min !== undefined ? stats.min.toFixed(1) : 'N/A';
+                    const maxStr = stats.max !== undefined ? stats.max.toFixed(1) : 'N/A';
+                    const atomCount = stats.atom_count !== undefined ? stats.atom_count : 'N/A';
                     html += `<tr style="border-bottom:1px solid #eee;background:${bgColor};">`;
-                    html += `<td style="padding:6px;font-weight:bold;">${cid}</td>`;
-                    html += `<td style="text-align:center;">${molType}</td>`;
-                    html += `<td style="text-align:center;">${comps}</td>`;
-                    html += `<td style="text-align:center;font-weight:bold;">${stats.mean.toFixed(1)}</td>`;
-                    html += `<td style="text-align:center;">${stats.min.toFixed(1)} - ${stats.max.toFixed(1)}</td>`;
-                    html += `<td style="text-align:center;">${stats.atom_count}</td>`;
+                    html += `<td style="padding:6px;font-weight:bold;">${escapeHtml(cid)}</td>`;
+                    html += `<td style="text-align:center;">${escapeHtml(molType)}</td>`;
+                    html += `<td style="text-align:center;">${escapeHtml(comps)}</td>`;
+                    html += `<td style="text-align:center;font-weight:bold;">${escapeHtml(meanStr)}</td>`;
+                    html += `<td style="text-align:center;">${escapeHtml(minStr)} - ${escapeHtml(maxStr)}</td>`;
+                    html += `<td style="text-align:center;">${escapeHtml(atomCount)}</td>`;
                     html += `</tr>`;
                 }
                 html += `</table></div>`;
@@ -927,8 +981,7 @@
                         <h3>Per-Residue pLDDT Plot</h3>
                         <img src="/api/image?uri=${encodeURIComponent(prediction.plots.plddt_plot)}"
                              class="plot-image"
-                             alt="pLDDT plot"
-                             onerror="this.style.display='none'; this.parentElement.innerHTML += '<p style=\\'color: #e74c3c;\\'>Error loading plot image</p>'">
+                             alt="pLDDT plot">
                     </div>
                 `;
             }
@@ -940,8 +993,7 @@
                         <h3>Predicted Aligned Error (PAE) Plot</h3>
                         <img src="/api/image?uri=${encodeURIComponent(prediction.plots.pae_plot)}"
                              class="plot-image"
-                             alt="PAE plot"
-                             onerror="this.style.display='none'; this.parentElement.innerHTML += '<p style=\\'color: #e74c3c;\\'>Error loading plot image</p>'">
+                             alt="PAE plot">
                     </div>
                 `;
             }
@@ -952,8 +1004,7 @@
                         <h3>Predicted Distance Error (PDE) Plot</h3>
                         <img src="/api/image?uri=${encodeURIComponent(prediction.plots.pde_plot)}"
                              class="plot-image"
-                             alt="PDE plot"
-                             onerror="this.style.display='none'; this.parentElement.innerHTML += '<p style=\\'color: #e74c3c;\\'>Error loading plot image</p>'">
+                             alt="PDE plot">
                     </div>
                 `;
             }
@@ -965,30 +1016,35 @@
                         <h3>Chain-Pair ipTM Matrix</h3>
                         <img src="/api/image?uri=${encodeURIComponent(prediction.plots.iptm_matrix_plot)}"
                              class="plot-image"
-                             alt="ipTM matrix plot"
-                             onerror="this.style.display='none'; this.parentElement.innerHTML += '<p style=\\'color: #e74c3c;\\'>Error loading plot image</p>'">
+                             alt="ipTM matrix plot">
                     </div>
                 `;
             }
 
             // Expert Analysis (Gemini) - Show on all model pages for convenience
             if (analysisData.expert_analysis && analysisData.expert_analysis.status === 'success') {
-                // Use marked.js to convert markdown to HTML
-                const analysisHtml = marked.parse(analysisData.expert_analysis.analysis);
+                // Use marked.js to convert markdown to HTML, sanitized with DOMPurify
+                const rawMarkdown = analysisData.expert_analysis.analysis || '';
+                const rawHtml = marked.parse(rawMarkdown);
+                const analysisHtml = DOMPurify.sanitize(rawHtml);
+                const expertModel = escapeHtml(analysisData.expert_analysis.model || '');
+                const generatedDate = analysisData.expert_analysis.generated_at
+                    ? escapeHtml(new Date(analysisData.expert_analysis.generated_at).toLocaleString())
+                    : 'N/A';
 
                 html += `
                     <div class="info-card" style="background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%); border-left: 4px solid #4285F4;">
                         <h3 style="color: #4285F4; display: flex; align-items: center; gap: 10px;">
                             🤖 Expert Analysis
                             <span style="font-size: 0.7rem; font-weight: normal; color: #888; background: white; padding: 3px 8px; border-radius: 12px;">
-                                ${analysisData.expert_analysis.model}
+                                ${expertModel}
                             </span>
                         </h3>
                         <div class="markdown-content">
                             ${analysisHtml}
                         </div>
                         <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd; font-size: 0.8rem; color: #888;">
-                            Generated by AI (${analysisData.expert_analysis.model}) on ${new Date(analysisData.expert_analysis.generated_at).toLocaleString()}.
+                            Generated by AI (${expertModel}) on ${generatedDate}.
                             This analysis has not been peer-reviewed and should be validated experimentally.
                         </div>
                     </div>
@@ -998,44 +1054,52 @@
             // Affinity results (Boltz-2 only, when affinity was requested)
             const affinity = analysisData.summary?.affinity;
             if (affinity && affinity.affinity_pred_value !== null && affinity.affinity_pred_value !== undefined) {
-                const bindingClass = affinity.binding_classification?.replace(/_/g, ' ') || 'N/A';
+                const rawBindingClass = affinity.binding_classification?.replace(/_/g, ' ') || 'N/A';
                 const classColors = {
                     'very strong': '#4CAF50', 'strong': '#8BC34A',
                     'moderate': '#FFC107', 'weak': '#FF9800', 'very weak': '#F44336',
                 };
-                const classColor = classColors[bindingClass.toLowerCase()] || '#9E9E9E';
+                const classColor = classColors[rawBindingClass.toLowerCase()] || '#9E9E9E';
+                const displayBindingClass = escapeHtml(rawBindingClass.charAt(0).toUpperCase() + rawBindingClass.slice(1));
+                const ic50Nm = affinity.ic50_nm !== null && affinity.ic50_nm !== undefined ? escapeHtml(affinity.ic50_nm.toFixed(1)) : 'N/A';
+                const pic50 = affinity.pic50 !== null && affinity.pic50 !== undefined ? escapeHtml(affinity.pic50.toFixed(2)) : 'N/A';
+                const deltaG = affinity.delta_g_kcal_mol !== null && affinity.delta_g_kcal_mol !== undefined ? escapeHtml(affinity.delta_g_kcal_mol.toFixed(2)) : 'N/A';
+                const bindingProb = affinity.affinity_probability_binary !== null && affinity.affinity_probability_binary !== undefined ? escapeHtml(affinity.affinity_probability_binary.toFixed(3)) : 'N/A';
+                const ic50Um = affinity.ic50_um !== null && affinity.ic50_um !== undefined ? escapeHtml(affinity.ic50_um.toFixed(4)) : 'N/A';
+                const rawLog10 = affinity.affinity_pred_value !== null && affinity.affinity_pred_value !== undefined ? escapeHtml(affinity.affinity_pred_value.toFixed(3)) : 'N/A';
+
                 html += `
                     <div class="info-card" style="border-left: 4px solid ${classColor};">
                         <h3 style="color: ${classColor};">Binding Affinity Prediction</h3>
                         <div class="quality-grid">
                             <div class="quality-item">
-                                <div class="value" style="color:${classColor};">${affinity.ic50_nm?.toFixed(1) ?? 'N/A'} nM</div>
+                                <div class="value" style="color:${classColor};">${ic50Nm} nM</div>
                                 <div class="label">IC50</div>
                             </div>
                             <div class="quality-item">
-                                <div class="value">${affinity.pic50?.toFixed(2) ?? 'N/A'}</div>
+                                <div class="value">${pic50}</div>
                                 <div class="label">pIC50</div>
                             </div>
                             <div class="quality-item">
-                                <div class="value">${affinity.delta_g_kcal_mol?.toFixed(2) ?? 'N/A'}</div>
+                                <div class="value">${deltaG}</div>
                                 <div class="label">ΔG (kcal/mol)</div>
                             </div>
                             <div class="quality-item">
-                                <div class="value">${affinity.affinity_probability_binary?.toFixed(3) ?? 'N/A'}</div>
+                                <div class="value">${bindingProb}</div>
                                 <div class="label">Binding Prob.</div>
                             </div>
                         </div>
                         <div class="info-row" style="margin-top:10px;">
                             <span class="info-label">Classification</span>
-                            <span class="info-value" style="font-weight:bold;color:${classColor};">${bindingClass.charAt(0).toUpperCase() + bindingClass.slice(1)}</span>
+                            <span class="info-value" style="font-weight:bold;color:${classColor};">${displayBindingClass}</span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">IC50 (μM)</span>
-                            <span class="info-value">${affinity.ic50_um?.toFixed(4) ?? 'N/A'} μM</span>
+                            <span class="info-value">${ic50Um} μM</span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">Raw log10(IC50_μM)</span>
-                            <span class="info-value">${affinity.affinity_pred_value?.toFixed(3) ?? 'N/A'}</span>
+                            <span class="info-value">${rawLog10}</span>
                         </div>
                         <p style="font-size:0.8rem;color:#888;margin-top:8px;">
                             IC50 from ensemble model. pIC50 = 6 − log₁₀(IC₅₀ μM). ΔG ≈ pIC50 × 1.364 kcal/mol.
@@ -1047,20 +1111,24 @@
 
             // Job Summary (from overall analysis data)
             if (analysisData.summary) {
+                const totalPreds = escapeHtml(analysisData.summary.statistics?.total_predictions || analysisData.summary.protein_info?.total_predictions || 'N/A');
+                const analyzedSuccess = escapeHtml(analysisData.summary.statistics?.analyzed_successfully || 'N/A');
+                const jobId = escapeHtml(analysisData.job_id || '');
+
                 html += `
                     <div class="info-card">
                         <h3>Overall Job Summary</h3>
                         <div class="info-row">
                             <span class="info-label">Total Predictions</span>
-                            <span class="info-value">${analysisData.summary.statistics?.total_predictions || analysisData.summary.protein_info?.total_predictions || 'N/A'}</span>
+                            <span class="info-value">${totalPreds}</span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">Analyzed Successfully</span>
-                            <span class="info-value">${analysisData.summary.statistics?.analyzed_successfully || 'N/A'}</span>
+                            <span class="info-value">${analyzedSuccess}</span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">Job ID</span>
-                            <span class="info-value" style="font-size: 0.8rem; word-break: break-all;">${analysisData.job_id}</span>
+                            <span class="info-value" style="font-size: 0.8rem; word-break: break-all;">${jobId}</span>
                         </div>
                 `;
 
@@ -1084,8 +1152,8 @@
 
                             html += `
                             <div class="info-row">
-                                <span class="info-label">${displayKey}</span>
-                                <span class="info-value">${value}</span>
+                                <span class="info-label">${escapeHtml(displayKey)}</span>
+                                <span class="info-value">${escapeHtml(value)}</span>
                             </div>
                             `;
                         });
@@ -1100,7 +1168,7 @@
                         html += `
                         <div class="info-row">
                             <span class="info-label">Sequence Length</span>
-                            <span class="info-value">${proteinInfo.sequence_length} residues</span>
+                            <span class="info-value">${escapeHtml(proteinInfo.sequence_length)} residues</span>
                         </div>
                         `;
                     }
@@ -1110,7 +1178,7 @@
                         html += `
                         <div class="info-row">
                             <span class="info-label">Sequence Name</span>
-                            <span class="info-value">${proteinInfo.fasta_header}</span>
+                            <span class="info-value">${escapeHtml(proteinInfo.fasta_header)}</span>
                         </div>
                         `;
                     }
@@ -1120,7 +1188,7 @@
                         html += `
                         <div class="info-row" style="grid-template-columns: 180px 1fr; align-items: start;">
                             <span class="info-label">Sequence</span>
-                            <span class="info-value" style="font-family: 'Courier New', monospace; word-break: break-all; font-size: 0.85rem; line-height: 1.6;">${proteinInfo.fasta_sequence}</span>
+                            <span class="info-value" style="font-family: 'Courier New', monospace; word-break: break-all; font-size: 0.85rem; line-height: 1.6;">${escapeHtml(proteinInfo.fasta_sequence)}</span>
                         </div>
                         `;
                     }
@@ -1140,12 +1208,12 @@
                         ? pi.input_query_yaml
                         : JSON.stringify(pi.input_query_yaml, null, 2);
                     // Escape HTML special chars so sequences with < > & display correctly
-                    const yamlStr = yamlRaw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                    const yamlStr = escapeHtml(yamlRaw);
                     html += `
                         <div class="info-card">
                             <h3>
                                 Input Query (YAML)
-                                <button onclick="navigator.clipboard.writeText(document.getElementById('query-yaml-pre').textContent).then(() => this.textContent = 'Copied!').catch(() => {}); setTimeout(() => this.textContent = 'Copy YAML', 1500)"
+                                <button id="copy-yaml-btn"
                                     style="float:right;font-size:0.75em;padding:4px 12px;background:#4285F4;color:white;border:none;border-radius:4px;cursor:pointer;">Copy YAML</button>
                             </h3>
                             <pre id="query-yaml-pre" style="background:#f8f9fa;padding:12px;border-radius:4px;font-size:0.82em;white-space:pre-wrap;word-break:break-word;max-height:400px;overflow-y:auto;border:1px solid #e0e0e0;">${yamlStr}</pre>
@@ -1154,20 +1222,59 @@
                 } else if (!isBoltz2 && pi.input_query_json) {
                     // OF3: JSON format
                     const jsonStr = JSON.stringify(pi.input_query_json, null, 2);
+                    const safeJsonStr = escapeHtml(jsonStr);
                     html += `
                         <div class="info-card">
                             <h3>
                                 Input Query (JSON)
-                                <button onclick="navigator.clipboard.writeText(document.getElementById('query-json-pre').textContent).then(() => this.textContent = 'Copied!').catch(() => {}); setTimeout(() => this.textContent = 'Copy JSON', 1500)"
+                                <button id="copy-json-btn"
                                     style="float:right;font-size:0.75em;padding:4px 12px;background:#4285F4;color:white;border:none;border-radius:4px;cursor:pointer;">Copy JSON</button>
                             </h3>
-                            <pre id="query-json-pre" style="background:#f8f9fa;padding:12px;border-radius:4px;font-size:0.82em;white-space:pre-wrap;word-break:break-word;max-height:400px;overflow-y:auto;border:1px solid #e0e0e0;">${jsonStr}</pre>
+                            <pre id="query-json-pre" style="background:#f8f9fa;padding:12px;border-radius:4px;font-size:0.82em;white-space:pre-wrap;word-break:break-word;max-height:400px;overflow-y:auto;border:1px solid #e0e0e0;">${safeJsonStr}</pre>
                         </div>
                     `;
                 }
             }
 
-            container.innerHTML = html;
+            container.innerHTML = DOMPurify.sanitize(html);
+
+            // Wire up copy buttons safely
+            const copyYamlBtn = document.getElementById('copy-yaml-btn');
+            if (copyYamlBtn) {
+                copyYamlBtn.addEventListener('click', function() {
+                    const pre = document.getElementById('query-yaml-pre');
+                    if (pre) {
+                        navigator.clipboard.writeText(pre.textContent).then(() => {
+                            this.textContent = 'Copied!';
+                        }).catch(() => {});
+                        setTimeout(() => { this.textContent = 'Copy YAML'; }, 1500);
+                    }
+                });
+            }
+
+            const copyJsonBtn = document.getElementById('copy-json-btn');
+            if (copyJsonBtn) {
+                copyJsonBtn.addEventListener('click', function() {
+                    const pre = document.getElementById('query-json-pre');
+                    if (pre) {
+                        navigator.clipboard.writeText(pre.textContent).then(() => {
+                            this.textContent = 'Copied!';
+                        }).catch(() => {});
+                        setTimeout(() => { this.textContent = 'Copy JSON'; }, 1500);
+                    }
+                });
+            }
+
+            // Wire up plot image error handlers safely
+            container.querySelectorAll('img.plot-image').forEach(img => {
+                img.addEventListener('error', function() {
+                    this.style.display = 'none';
+                    const errP = document.createElement('p');
+                    errP.style.color = '#e74c3c';
+                    errP.textContent = 'Error loading plot image';
+                    this.parentElement.appendChild(errP);
+                });
+            });
         }
 
         // Check if current prediction is OF3 with ligands
