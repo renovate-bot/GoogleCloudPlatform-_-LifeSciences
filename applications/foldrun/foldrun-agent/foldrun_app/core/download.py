@@ -25,6 +25,7 @@ Supports two data sources:
 """
 
 import logging
+import shlex
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -219,9 +220,11 @@ def submit_download(
     # Determine data source: GCS restore or internet download
     if source_bucket:
         source_gcs_path = f"gs://{source_bucket}/{nfs_path}/"
+        safe_source_gcs_path = shlex.quote(source_gcs_path)
+        safe_dest_path_slash = shlex.quote(f"{dest_path}/")
         download_script = (
-            f"echo '=== Restoring from GCS: {source_gcs_path} ==='\n"
-            f"gcloud storage rsync --recursive {source_gcs_path} {dest_path}/ 2>&1\n"
+            f"echo {shlex.quote(f'=== Restoring from GCS: {source_gcs_path} ===')}\n"
+            f"gcloud storage rsync --recursive {safe_source_gcs_path} {safe_dest_path_slash} 2>&1\n"
         )
         data_source = f"gcs:{source_bucket}"
     else:
@@ -230,24 +233,27 @@ def submit_download(
 
     # Backup to this project's GCS bucket (skip if source_bucket == gcs_bucket)
     gcs_sync = ""
+    safe_dest_path = shlex.quote(dest_path)
+    safe_dest_path_slash = shlex.quote(f"{dest_path}/")
     if gcs_bucket and gcs_bucket != source_bucket:
         gcs_path = f"gs://{gcs_bucket}/{nfs_path}/"
+        safe_gcs_path = shlex.quote(gcs_path)
         # Use GCS_SYNC_SOURCE env var if set (e.g. for fast SSD -> GCS sync)
         # Fall back to dest_path (NFS)
         gcs_sync = (
-            f"echo '=== Backing up to GCS: {gcs_path} ==='\n"
-            f'SYNC_SOURCE="${{GCS_SYNC_SOURCE:-{dest_path}/}}"\n'
-            f'gcloud storage rsync --recursive "$SYNC_SOURCE" {gcs_path} 2>&1\n'
+            f"echo {shlex.quote(f'=== Backing up to GCS: {gcs_path} ===')}\n"
+            f'SYNC_SOURCE="${{GCS_SYNC_SOURCE:-{safe_dest_path_slash}}}"\n'
+            f'gcloud storage rsync --recursive "$SYNC_SOURCE" {safe_gcs_path} 2>&1\n'
         )
 
     full_script = (
         f"set -e\n"
         f"apt-get update -qq && apt-get install -y -qq aria2 python3-crcmod 2>/dev/null || true\n"
-        f"echo '=== {display_name} → NFS: {dest_path} (source: {data_source}) ==='\n"
-        f"mkdir -p {dest_path}\n"
+        f"echo {shlex.quote(f'=== {display_name} → NFS: {dest_path} (source: {data_source}) ===')}\n"
+        f"mkdir -p {safe_dest_path}\n"
         f"{download_script}\n"
         f"echo '=== Download complete ==='\n"
-        f"ls -lh {dest_path}/ | head -20\n"
+        f"ls -lh {safe_dest_path_slash} | head -20\n"
         f"{gcs_sync}"
         f"echo '=== Done ==='\n"
     )

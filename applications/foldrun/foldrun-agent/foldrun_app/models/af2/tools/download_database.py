@@ -26,6 +26,8 @@ uses Jackhmmer/HHblits directly on the raw FASTA/HH-suite databases.
 """
 
 import logging
+import re
+import shlex
 from datetime import datetime
 from typing import Any
 
@@ -97,11 +99,41 @@ class DownloadDatabaseTool(AF2Tool):
 
         db_config = DATABASE_REGISTRY[database_name]
         machine_type = arguments.get("machine_type", db_config.get("machine_type", "n1-standard-4"))
-        subdir = arguments.get("nfs_target_dir", DATABASE_SUBDIRS[database_name])
+
+        # Validate nfs_target_dir if provided
+        if "nfs_target_dir" in arguments:
+            raw_subdir = arguments.get("nfs_target_dir")
+            if not isinstance(raw_subdir, str):
+                return {
+                    "status": "error",
+                    "message": "Invalid nfs_target_dir: must be a string.",
+                }
+            cleaned_subdir = raw_subdir.strip().strip("/")
+            if (
+                not cleaned_subdir
+                or ".." in cleaned_subdir.split("/")
+                or not re.match(r"^[a-zA-Z0-9_.-]+(/[a-zA-Z0-9_.-]+)*$", cleaned_subdir)
+            ):
+                return {
+                    "status": "error",
+                    "message": (
+                        f"Invalid nfs_target_dir '{raw_subdir}'. "
+                        "Must be a relative path containing only alphanumeric characters, "
+                        "underscores, hyphens, and dots without traversal."
+                    ),
+                }
+            subdir = cleaned_subdir
+        else:
+            subdir = DATABASE_SUBDIRS[database_name]
 
         # GCS destination
         default_gcs_path = f"gs://{self.config.databases_bucket_name}/{subdir}/"
-        gcs_output_path = arguments.get("gcs_output_path", default_gcs_path)
+        gcs_output_path = arguments.get("gcs_output_path") or default_gcs_path
+        if not isinstance(gcs_output_path, str):
+            return {
+                "status": "error",
+                "message": "Invalid gcs_output_path: must be a string.",
+            }
         if not gcs_output_path.endswith("/"):
             gcs_output_path += "/"
 
@@ -118,18 +150,22 @@ class DownloadDatabaseTool(AF2Tool):
         dest_path = f"{nfs_mount}/{subdir}"
         display_name = db_config.get("display_name", database_name)
 
+        safe_dest_path = shlex.quote(dest_path)
+        safe_dest_path_slash = shlex.quote(f"{dest_path}/")
+        safe_gcs_output_path = shlex.quote(gcs_output_path)
+
         # Build download script from YAML definition
         download_script = build_script(database_name, db_config, dest_path)
         full_script = (
             f"set -e\n"
             f"apt-get update -qq && apt-get install -y -qq aria2 python3-crcmod 2>/dev/null || true\n"
-            f"echo '=== Downloading {display_name} to NFS: {dest_path} ==='\n"
-            f"mkdir -p {dest_path}\n"
+            f"echo {shlex.quote(f'=== Downloading {display_name} to NFS: {dest_path} ===')}\n"
+            f"mkdir -p {safe_dest_path}\n"
             f"{download_script}\n"
             f"echo '=== Download complete ==='\n"
-            f"ls -lh {dest_path}/ | head -20\n"
-            f"echo '=== Backing up to GCS: {gcs_output_path} ==='\n"
-            f"gcloud storage rsync --recursive {dest_path}/ {gcs_output_path} 2>&1\n"
+            f"ls -lh {safe_dest_path_slash} | head -20\n"
+            f"echo {shlex.quote(f'=== Backing up to GCS: {gcs_output_path} ===')}\n"
+            f"gcloud storage rsync --recursive {safe_dest_path_slash} {safe_gcs_output_path} 2>&1\n"
             f"echo '=== Done ==='\n"
         )
 
